@@ -6,18 +6,23 @@ mod config;
 mod tile;
 mod map;
 mod object;
+mod rect;
 
 use config::*;
 use tile::*;
 use map::*;
 use object::*;
+use rect::*;
 
 fn make_map() -> Map {
-    let mut map = vec![vec![Tile::empty(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
+    let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
 
-    // two pillars
-    map[30][22] = Tile::wall();
-    map[50][22] = Tile::wall();
+    let room1 = Rect::new(20, 15, 10, 15);
+    let room2 = Rect::new(50, 15, 10, 15);
+    create_room(room1, &mut map);
+    create_room(room2, &mut map);
+    
+    create_h_tunnel(25, 55, 23, &mut map);
 
     map
 }
@@ -76,7 +81,7 @@ fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let player = Object::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, '@', colors::WHITE);
+    let player = Object::new(25, 23, '@', colors::WHITE);
     let npc = Object::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 5, '@', colors::GOLD);
     let mut objects = [player, npc];
 
