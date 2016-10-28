@@ -19,7 +19,7 @@ use object::*;
 use rect::*;
 
 
-fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &Map, fov_map: &mut FovMap, fov_recompute: bool) {
+fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mut Map, fov_map: &mut FovMap, fov_recompute: bool) {
     // draw map
     if fov_recompute {
         println!("Fov recomputed");
@@ -38,7 +38,15 @@ fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &Ma
                     (true, true) => COLOR_LIGHT_WALL,
                     (true, false) => COLOR_LIGHT_GROUND,
                 };
-                con.set_char_background(x, y, color, BackgroundFlag::Set);
+
+                // render only explored tiles
+                let explored = &mut map[x as usize][y as usize].explored;
+                if visible {
+                    *explored = true;
+                }
+                if *explored {
+                    con.set_char_background(x, y, color, BackgroundFlag::Set);
+                }
             }
         }
     }
@@ -87,7 +95,7 @@ fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let (map, (player_start_x, player_start_y)) = make_map();
+    let (mut map, (player_start_x, player_start_y)) = make_map();
 
     let player = Object::new(player_start_x, player_start_y, '@', colors::WHITE);
     let mut objects = [player];
@@ -104,7 +112,7 @@ fn main() {
 
     while !root.window_closed() {
         let fov_recompute = previous_player_position != (objects[0].x, objects[0].y);
-        render_all(&mut root, &mut con, &objects, &map, &mut fov_map, fov_recompute);
+        render_all(&mut root, &mut con, &objects, &mut map, &mut fov_map, fov_recompute);
 
         root.flush();
       
