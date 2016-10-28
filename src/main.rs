@@ -17,17 +17,46 @@ use map::*;
 use object::*;
 use rect::*;
 
-fn make_map() -> Map {
+fn make_map() -> (Map, (i32, i32)) {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
+    let mut rooms = vec![];
+    let mut starting_position = (0, 0);
 
-    let room1 = Rect::new(20, 15, 10, 15);
-    let room2 = Rect::new(50, 15, 10, 15);
-    create_room(room1, &mut map);
-    create_room(room2, &mut map);
+    for _ in 0..MAX_ROOMS {
+        let w = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE + 1);
+        let h = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE + 1);
+        let x = rand::thread_rng().gen_range(0, MAP_WIDTH - w);
+        let y = rand::thread_rng().gen_range(0, MAP_HEIGHT - h);
 
-    create_h_tunnel(25, 55, 23, &mut map);
+        let new_room = Rect::new(x, y, w, h);
+        // check for overlapping with existing ones
+        let failed = rooms.iter().any(|other_room| new_room.intersects_with(other_room));
 
-    map
+        if !failed {
+            create_room(new_room, &mut map);
+            let (new_x, new_y) = new_room.center();
+
+            if rooms.is_empty() {
+                starting_position = (new_x, new_y);
+            } else {
+                // connect the room to the previous room with a tunnel
+                let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
+
+                // random order
+                if rand::random() {
+                    create_h_tunnel(prev_x, new_x, prev_y, &mut map);
+                    create_v_tunnel(prev_y, new_y, new_x, &mut map);
+                } else {
+                    create_v_tunnel(prev_y, new_y, prev_x, &mut map);
+                    create_h_tunnel(prev_x, new_x, new_y, &mut map);
+                }
+            }
+
+            rooms.push(new_room);
+        }
+    }
+
+    (map, starting_position)
 }
 
 fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &Map) {
@@ -79,16 +108,15 @@ fn main() {
         .font("arial10x10.png", FontLayout::Tcod)
         .font_type(FontType::Greyscale)
         .size(SCREEN_WIDTH, SCREEN_HEIGHT)
-        .title("Rust Roguelike")
+        .title("Rusty Roguelike")
         .init();
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let player = Object::new(25, 23, '@', colors::WHITE);
-    let npc = Object::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 5, '@', colors::GOLD);
-    let mut objects = [player, npc];
+    let (map, (player_x, player_y)) = make_map();
 
-    let map = make_map();
+    let player = Object::new(player_x, player_y, '@', colors::WHITE);
+    let mut objects = [player];
 
     while !root.window_closed() {
         render_all(&mut root, &mut con, &objects, &map);
@@ -106,5 +134,3 @@ fn main() {
         }
     }
 }
-
-

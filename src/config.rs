@@ -9,7 +9,7 @@ pub const MAP_HEIGHT: i32 = 45;
 
 pub const ROOM_MAX_SIZE: i32 = 10;
 pub const ROOM_MIN_SIZE: i32 = 6;
-pub const ROOM_ROOMS: i32 = 30;
+pub const MAX_ROOMS: i32 = 30;
 
 pub const LIMIT_FPS: i32 = 20;
 
