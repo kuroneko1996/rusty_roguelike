@@ -5,10 +5,10 @@ use map::Map;
 
 #[derive(Debug)]
 pub struct Object {
-    x: i32,
-    y: i32,
-    char: char,
-    color: Color,
+    pub x: i32,
+    pub y: i32,
+    pub char: char,
+    pub color: Color,
 }
 
 impl Object {

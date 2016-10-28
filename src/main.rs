@@ -3,6 +3,7 @@ extern crate rand;
 
 use tcod::console::*;
 use tcod::colors::{self, Color};
+use tcod::map::{Map as FovMap, FovAlgorithm};
 use rand::Rng;
 
 mod config;
@@ -17,64 +18,37 @@ use map::*;
 use object::*;
 use rect::*;
 
-fn make_map() -> (Map, (i32, i32)) {
-    let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
-    let mut rooms = vec![];
-    let mut starting_position = (0, 0);
 
-    for _ in 0..MAX_ROOMS {
-        let w = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE + 1);
-        let h = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE + 1);
-        let x = rand::thread_rng().gen_range(0, MAP_WIDTH - w);
-        let y = rand::thread_rng().gen_range(0, MAP_HEIGHT - h);
+fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &Map, fov_map: &mut FovMap, fov_recompute: bool) {
+    // draw map
+    if fov_recompute {
+        println!("Fov recomputed");
+        let player = &objects[0];
+        fov_map.compute_fov(player.x, player.y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO);
 
-        let new_room = Rect::new(x, y, w, h);
-        // check for overlapping with existing ones
-        let failed = rooms.iter().any(|other_room| new_room.intersects_with(other_room));
-
-        if !failed {
-            create_room(new_room, &mut map);
-            let (new_x, new_y) = new_room.center();
-
-            if rooms.is_empty() {
-                starting_position = (new_x, new_y);
-            } else {
-                // connect the room to the previous room with a tunnel
-                let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
-
-                // random order
-                if rand::random() {
-                    create_h_tunnel(prev_x, new_x, prev_y, &mut map);
-                    create_v_tunnel(prev_y, new_y, new_x, &mut map);
-                } else {
-                    create_v_tunnel(prev_y, new_y, prev_x, &mut map);
-                    create_h_tunnel(prev_x, new_x, new_y, &mut map);
-                }
-            }
-
-            rooms.push(new_room);
-        }
-    }
-
-    (map, starting_position)
-}
-
-fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &Map) {
-    for y in 0..MAP_HEIGHT {
-        for x in 0..MAP_WIDTH {
-            let wall = map[x as usize][y as usize].block_sight;
-            if wall {
-                con.set_char_background(x, y, COLOR_DARK_WALL, BackgroundFlag::Set);
-            } else {
-                con.set_char_background(x, y, COLOR_DARK_GROUND, BackgroundFlag::Set);
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let wall = map[x as usize][y as usize].block_sight;
+                let visible = fov_map.is_in_fov(x, y);
+                let color = match (visible, wall) {
+                    // outside fov
+                    (false, true) => COLOR_DARK_WALL,
+                    (false, false) => COLOR_DARK_GROUND,
+                    // inside fov
+                    (true, true) => COLOR_LIGHT_WALL,
+                    (true, false) => COLOR_LIGHT_GROUND,
+                };
+                con.set_char_background(x, y, color, BackgroundFlag::Set);
             }
         }
     }
 
+    // draw objects
     for object in objects {
         object.draw(con);
     }
 
+    // copy buffer
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
 
@@ -113,13 +87,24 @@ fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let (map, (player_x, player_y)) = make_map();
+    let (map, (player_start_x, player_start_y)) = make_map();
 
-    let player = Object::new(player_x, player_y, '@', colors::WHITE);
+    let player = Object::new(player_start_x, player_start_y, '@', colors::WHITE);
     let mut objects = [player];
 
+
+    // FOV
+    let mut fov_map = FovMap::new(MAP_WIDTH, MAP_HEIGHT);
+    for x in 0..MAP_WIDTH {
+        for y in 0..MAP_HEIGHT {
+            fov_map.set(x, y, !map[x as usize][y as usize].block_sight, !map[x as usize][y as usize].blocked)
+        }
+    }
+    let mut previous_player_position = (-1, -1);
+
     while !root.window_closed() {
-        render_all(&mut root, &mut con, &objects, &map);
+        let fov_recompute = previous_player_position != (objects[0].x, objects[0].y);
+        render_all(&mut root, &mut con, &objects, &map, &mut fov_map, fov_recompute);
 
         root.flush();
       
@@ -128,6 +113,7 @@ fn main() {
         }
 
         let player = &mut objects[0];
+        previous_player_position = (player.x, player.y);
         let exit = handle_keys(&mut root, player, &map);
         if exit {
             break;
