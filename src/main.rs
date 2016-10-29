@@ -83,10 +83,10 @@ fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> Player
         },
         (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
-        (Key { code: Up, .. }, true) => { player.move_by(0, -1, map, objects); TookTurn } ,
-        (Key { code: Down, .. }, true) => { player.move_by(0, 1, map, objects); TookTurn },
-        (Key { code: Left, .. }, true) => { player.move_by(-1, 0, map, objects); TookTurn },
-        (Key { code: Right, .. }, true) => { player.move_by(1, 0, map, objects); TookTurn },
+        (Key { code: Up, .. }, true) => { player.move_or_attack(0, -1, map, objects); TookTurn } ,
+        (Key { code: Down, .. }, true) => { player.move_or_attack(0, 1, map, objects); TookTurn },
+        (Key { code: Left, .. }, true) => { player.move_or_attack(-1, 0, map, objects); TookTurn },
+        (Key { code: Right, .. }, true) => { player.move_or_attack(1, 0, map, objects); TookTurn },
 
         _ => DidntTakeTurn,
     }
@@ -141,7 +141,7 @@ fn main() {
         if objects[PLAYER].alive && player_action == PlayerAction::TookTurn {
             for object in &objects {
                 // check if not player
-                if (object as *const _) != (&objects[PLAYER] as *const _) { // TODO replace this weird thing
+                if (object as *const _) != (&objects[PLAYER] as *const _) {
                     println!("The {} growls", object.name);
                 }
             }

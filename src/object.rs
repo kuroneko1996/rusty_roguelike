@@ -40,6 +40,24 @@ impl Object {
         }
     }
 
+    pub fn move_or_attack(&mut self, dx: i32, dy: i32, map: &Map, objects: &[Object]) {
+        let x = self.x + dx;
+        let y = self.y + dy;
+
+        let target_id = objects.iter().position(|object| {
+            object.pos() == (x, y)
+        });
+
+        match target_id {
+            Some(target_id) => {
+                println!("The {} laughs at you", objects[target_id].name);
+            },
+            None => {
+                self.move_by(dx, dy, map, objects);
+            }
+        }
+    }
+
     pub fn pos(&self) -> (i32, i32) {
         (self.x, self.y)
     }
