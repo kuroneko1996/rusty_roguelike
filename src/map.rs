@@ -31,22 +31,33 @@ pub fn create_v_tunnel(y1: i32, y2: i32, x: i32, map: &mut Map) {
     }    
 }
 
-pub fn place_objects(room: Rect, objects: &mut Vec<Object>) {
+pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
     let num_monsters = rand::thread_rng().gen_range(0, MAX_ROOM_MONSTERS + 1);
 
     for _ in 0..num_monsters {
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
-        let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
-            Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true)
-        } else {
-            Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true)
-        };
-        monster.alive = true;
-
-        objects.push(monster);
+        if !is_blocked(x, y, map, objects) {
+            let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
+                Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true)
+            } else {
+                Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true)
+            };
+            monster.alive = true;
+            objects.push(monster);
+        }
     }
+}
+
+pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[Object]) -> bool {
+    if map[x as usize][y as usize].blocked {
+        return true;
+    }
+
+    objects.iter().any(|object| {
+        object.blocks && object.pos() == (x, y)
+    })
 }
 
 pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
@@ -66,7 +77,7 @@ pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
 
         if !failed {
             create_room(new_room, &mut map);
-            place_objects(new_room, objects);
+            place_objects(new_room, &map, objects);
             let (new_x, new_y) = new_room.center();
 
             if rooms.is_empty() {

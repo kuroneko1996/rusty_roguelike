@@ -59,9 +59,14 @@ fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mu
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
 
-fn handle_keys(root: &mut Root, player: &mut Object, map: &Map) -> bool {
+fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> bool {
     use tcod::input::Key;
     use tcod::input::KeyCode::*;
+
+    //let player = &mut objects[PLAYER];
+    let (player_slice, objects) = all_objects.split_at_mut(1);
+    let player = &mut player_slice[PLAYER];
+
 
     let key = root.wait_for_keypress(true);
     match key {
@@ -72,10 +77,10 @@ fn handle_keys(root: &mut Root, player: &mut Object, map: &Map) -> bool {
         },
         Key { code: Escape, ..} => return true, // Exit game
         // Movement
-        Key { code: Up, .. } => player.move_by(0, -1, map),
-        Key { code: Down, .. } => player.move_by(0, 1, map),
-        Key { code: Left, .. } => player.move_by(-1, 0, map),
-        Key { code: Right, .. } => player.move_by(1, 0, map),
+        Key { code: Up, .. } => player.move_by(0, -1, map, objects),
+        Key { code: Down, .. } => player.move_by(0, 1, map, objects),
+        Key { code: Left, .. } => player.move_by(-1, 0, map, objects),
+        Key { code: Right, .. } => player.move_by(1, 0, map, objects),
 
         _ => {},
     }
@@ -110,7 +115,7 @@ fn main() {
     let mut previous_player_position = (-1, -1);
 
     while !root.window_closed() {
-        let fov_recompute = previous_player_position != (objects[0].x, objects[0].y);
+        let fov_recompute = previous_player_position != (objects[PLAYER].x, objects[PLAYER].y);
         render_all(&mut root, &mut con, &objects, &mut map, &mut fov_map, fov_recompute);
 
         root.flush();
@@ -119,9 +124,8 @@ fn main() {
             object.clear(&mut con);
         }
 
-        let player = &mut objects[0];
-        previous_player_position = (player.x, player.y);
-        let exit = handle_keys(&mut root, player, &map);
+        previous_player_position = (objects[PLAYER].x, objects[PLAYER].y);
+        let exit = handle_keys(&mut root, &map, &mut objects);
         if exit {
             break;
         }

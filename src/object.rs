@@ -1,7 +1,7 @@
 use tcod::console::*;
 use tcod::colors::{self, Color};
 use config::*;
-use map::Map;
+use map::*;
 
 #[derive(Debug)]
 pub struct Object {
@@ -27,13 +27,14 @@ impl Object {
         }
     }
 
-    pub fn move_by(&mut self, dx: i32, dy: i32, map: &Map) {
+    pub fn move_by(&mut self, dx: i32, dy: i32, map: &Map, objects: &[Object]) {
         let new_x: i32 = self.x + dx;
         let new_y: i32 = self.y + dy;
         if new_x < 0 || new_y < 0 || new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
             return
         }
-        if !map[(self.x + dx) as usize][(self.y + dy) as usize].blocked {
+
+        if !is_blocked(self.x + dx, self.y + dy, map, objects) {
             self.x += dx;
             self.y += dy;
         }
