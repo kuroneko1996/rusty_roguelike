@@ -18,6 +18,12 @@ use map::*;
 use object::*;
 use rect::*;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PlayerAction {
+    TookTurn,
+    DidntTakeTurn,
+    Exit,
+}
 
 fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mut Map, fov_map: &mut FovMap, fov_recompute: bool) {
     // draw map
@@ -59,33 +65,31 @@ fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mu
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
 
-fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> bool {
+fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> PlayerAction {
     use tcod::input::Key;
     use tcod::input::KeyCode::*;
+    use PlayerAction::*;
 
-    //let player = &mut objects[PLAYER];
     let (player_slice, objects) = all_objects.split_at_mut(1);
     let player = &mut player_slice[PLAYER];
 
-
     let key = root.wait_for_keypress(true);
-    match key {
+    match (key, player.alive) {
         // Alt Enter fullscreen
-        Key { code: Enter, alt: true, ..} => {
+        (Key { code: Enter, alt: true, ..}, _) => {
             let fullscreen = root.is_fullscreen();
             root.set_fullscreen(!fullscreen);
+            DidntTakeTurn
         },
-        Key { code: Escape, ..} => return true, // Exit game
+        (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
-        Key { code: Up, .. } => player.move_by(0, -1, map, objects),
-        Key { code: Down, .. } => player.move_by(0, 1, map, objects),
-        Key { code: Left, .. } => player.move_by(-1, 0, map, objects),
-        Key { code: Right, .. } => player.move_by(1, 0, map, objects),
+        (Key { code: Up, .. }, true) => { player.move_by(0, -1, map, objects); TookTurn } ,
+        (Key { code: Down, .. }, true) => { player.move_by(0, 1, map, objects); TookTurn },
+        (Key { code: Left, .. }, true) => { player.move_by(-1, 0, map, objects); TookTurn },
+        (Key { code: Right, .. }, true) => { player.move_by(1, 0, map, objects); TookTurn },
 
-        _ => {},
+        _ => DidntTakeTurn,
     }
-
-    false
 }
 
 fn main() {
@@ -98,7 +102,8 @@ fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let player = Object::new(0, 0, '@', "player", colors::WHITE, true);
+    let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
+    player.alive = true;
     let mut objects = vec![player];
     let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
     objects[PLAYER].x = player_start_x;
@@ -125,9 +130,21 @@ fn main() {
         }
 
         previous_player_position = (objects[PLAYER].x, objects[PLAYER].y);
-        let exit = handle_keys(&mut root, &map, &mut objects);
-        if exit {
-            break;
+
+        // player's turn
+        let player_action = handle_keys(&mut root, &map, &mut objects);
+        if player_action == PlayerAction::Exit {
+            break
+        }
+
+        // monsters turn
+        if objects[PLAYER].alive && player_action == PlayerAction::TookTurn {
+            for object in &objects {
+                // check if not player
+                if (object as *const _) != (&objects[PLAYER] as *const _) { // TODO replace this weird thing
+                    println!("The {} growls", object.name);
+                }
+            }
         }
     }
 }
