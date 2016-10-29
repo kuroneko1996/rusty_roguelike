@@ -7,7 +7,7 @@ use tcod::colors::{self, Color};
 use config::*;
 use tile::*;
 use rect::*;
-use object::Object;
+use object::*;
 
 pub type Map = Vec<Vec<Tile>>;
 
@@ -40,9 +40,15 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
 
         if !is_blocked(x, y, map, objects) {
             let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
-                Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true)
+                let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
+                orc.fighter = Some(Fighter{max_hp: 10, hp: 10, defense: 0, power: 3});
+                orc.ai = Some(Ai);
+                orc
             } else {
-                Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true)
+                let mut troll = Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true);
+                troll.fighter = Some(Fighter{max_hp: 10, hp: 10, defense: 0, power: 3});
+                troll.ai = Some(Ai);
+                troll
             };
             monster.alive = true;
             objects.push(monster);

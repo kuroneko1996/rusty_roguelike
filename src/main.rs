@@ -25,10 +25,12 @@ enum PlayerAction {
     Exit,
 }
 
-fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mut Map, fov_map: &mut FovMap, fov_recompute: bool) {
+fn render_all(root: &mut Root, con: &mut Offscreen, object_manager: &mut ObjectsManager, 
+                    map: &mut Map, fov_map: &mut FovMap, fov_recompute: bool) 
+{
     // draw map
     if fov_recompute {
-        let player = &objects[0];
+        let player = object_manager.get(PLAYER);
         fov_map.compute_fov(player.x, player.y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO);
 
         for y in 0..MAP_HEIGHT {
@@ -57,24 +59,21 @@ fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mu
     }
 
     // draw objects
-    for object in objects {
-        object.draw(con);
-    }
+    object_manager.draw(con);
 
     // copy buffer
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
 
-fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> PlayerAction {
+fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager) -> PlayerAction {
     use tcod::input::Key;
     use tcod::input::KeyCode::*;
     use PlayerAction::*;
 
-    let (player_slice, objects) = all_objects.split_at_mut(1);
-    let player = &mut player_slice[PLAYER];
+    let is_alive = object_manager.get(PLAYER).alive;
 
     let key = root.wait_for_keypress(true);
-    match (key, player.alive) {
+    match (key, is_alive) {
         // Alt Enter fullscreen
         (Key { code: Enter, alt: true, ..}, _) => {
             let fullscreen = root.is_fullscreen();
@@ -83,10 +82,10 @@ fn handle_keys(root: &mut Root, map: &Map, all_objects: &mut [Object]) -> Player
         },
         (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
-        (Key { code: Up, .. }, true) => { player.move_or_attack(0, -1, map, objects); TookTurn } ,
-        (Key { code: Down, .. }, true) => { player.move_or_attack(0, 1, map, objects); TookTurn },
-        (Key { code: Left, .. }, true) => { player.move_or_attack(-1, 0, map, objects); TookTurn },
-        (Key { code: Right, .. }, true) => { player.move_or_attack(1, 0, map, objects); TookTurn },
+        (Key { code: Up, .. }, true) => { object_manager.player_move_or_attack(0, -1, map); TookTurn } ,
+        (Key { code: Down, .. }, true) => { object_manager.player_move_or_attack(0, 1, map); TookTurn },
+        (Key { code: Left, .. }, true) => { object_manager.player_move_or_attack(-1, 0, map); TookTurn },
+        (Key { code: Right, .. }, true) => { object_manager.player_move_or_attack(1, 0, map); TookTurn },
 
         _ => DidntTakeTurn,
     }
@@ -104,11 +103,15 @@ fn main() {
 
     let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
     player.alive = true;
+    player.fighter = Some(Fighter{
+        max_hp: 30, hp: 30, defense: 2, power: 5,
+    });
+
     let mut objects = vec![player];
     let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
-    objects[PLAYER].x = player_start_x;
-    objects[PLAYER].y = player_start_y;
 
+    let mut object_manager = ObjectsManager { objects: objects };
+    object_manager.get(PLAYER).set_pos(player_start_x, player_start_y);
 
     // FOV
     let mut fov_map = FovMap::new(MAP_WIDTH, MAP_HEIGHT);
@@ -120,31 +123,25 @@ fn main() {
     let mut previous_player_position = (-1, -1);
 
     while !root.window_closed() {
-        let fov_recompute = previous_player_position != (objects[PLAYER].x, objects[PLAYER].y);
-        render_all(&mut root, &mut con, &objects, &mut map, &mut fov_map, fov_recompute);
+        let (player_x, player_y) = object_manager.get(PLAYER).pos();
+        let fov_recompute = previous_player_position != (player_x, player_y);
+        render_all(&mut root, &mut con, &mut object_manager, &mut map, &mut fov_map, fov_recompute);
 
         root.flush();
       
-        for object in &objects {
-            object.clear(&mut con);
-        }
+        object_manager.draw_clear(&mut con);
 
-        previous_player_position = (objects[PLAYER].x, objects[PLAYER].y);
+        previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(&mut root, &map, &mut objects);
+        let player_action = handle_keys(&mut root, &map, &mut object_manager);
         if player_action == PlayerAction::Exit {
             break
         }
 
         // monsters turn
-        if objects[PLAYER].alive && player_action == PlayerAction::TookTurn {
-            for object in &objects {
-                // check if not player
-                if (object as *const _) != (&objects[PLAYER] as *const _) {
-                    println!("The {} growls", object.name);
-                }
-            }
+        if object_manager.get(PLAYER).alive && player_action == PlayerAction::TookTurn {
+            object_manager.ai_turn(&map, &fov_map);
         }
     }
 }

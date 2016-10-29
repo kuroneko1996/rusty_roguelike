@@ -1,5 +1,6 @@
 use tcod::console::*;
 use tcod::colors::{self, Color};
+use tcod::map::{Map as FovMap, FovAlgorithm};
 use config::*;
 use map::*;
 
@@ -12,6 +13,8 @@ pub struct Object {
     pub name: String,
     pub blocks: bool,
     pub alive: bool,
+    pub fighter: Option<Fighter>,
+    pub ai: Option<Ai>,
 }
 
 impl Object {
@@ -24,37 +27,8 @@ impl Object {
             name: name.into(),
             blocks: blocks,
             alive: false,
-        }
-    }
-
-    pub fn move_by(&mut self, dx: i32, dy: i32, map: &Map, objects: &[Object]) {
-        let new_x: i32 = self.x + dx;
-        let new_y: i32 = self.y + dy;
-        if new_x < 0 || new_y < 0 || new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
-            return
-        }
-
-        if !is_blocked(self.x + dx, self.y + dy, map, objects) {
-            self.x += dx;
-            self.y += dy;
-        }
-    }
-
-    pub fn move_or_attack(&mut self, dx: i32, dy: i32, map: &Map, objects: &[Object]) {
-        let x = self.x + dx;
-        let y = self.y + dy;
-
-        let target_id = objects.iter().position(|object| {
-            object.pos() == (x, y)
-        });
-
-        match target_id {
-            Some(target_id) => {
-                println!("The {} laughs at you", objects[target_id].name);
-            },
-            None => {
-                self.move_by(dx, dy, map, objects);
-            }
+            fighter: None,
+            ai: None,
         }
     }
 
@@ -67,6 +41,12 @@ impl Object {
         self.y = y;
     }
 
+    pub fn distance_to(&self, other: &Object) -> f32 {
+        let dx = other.x - self.x;
+        let dy = other.y - self.y;
+        ((dx.pow(2) + dy.pow(2)) as f32).sqrt()
+    }
+
     pub fn draw(&self, con: &mut Console) {
         con.set_default_foreground(self.color);
         con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
@@ -76,3 +56,112 @@ impl Object {
         con.put_char(self.x, self.y, ' ', BackgroundFlag::None);
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fighter {
+    pub max_hp: i32,
+    pub hp: i32,
+    pub defense: i32,
+    pub power: i32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Ai;
+
+pub struct ObjectsManager {
+    pub objects: Vec<Object>,
+}
+
+impl ObjectsManager {
+
+    pub fn add(&mut self, obj: Object) {
+        self.objects.push(obj);
+    }
+
+    pub fn get(&mut self, id: usize) -> &mut Object {
+        &mut self.objects[id]
+    }
+
+    pub fn draw_clear(&self, con: &mut Offscreen) {
+        for object in &self.objects {
+            object.clear(con);
+        }
+    }
+
+    pub fn draw(&self, con: &mut Offscreen) {
+        for object in &self.objects {
+            object.draw(con);
+        }
+    }
+
+    pub fn move_by(&mut self, id: usize, dx: i32, dy: i32, map: &Map) {
+        let (x, y) = self.objects[id].pos();
+        let new_x: i32 = x + dx;
+        let new_y: i32 = y + dy;
+        if new_x < 0 || new_y < 0 || new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
+            return
+        }
+
+        if !is_blocked(x + dx, y + dy, map, &self.objects) {
+            self.objects[id].x += dx;
+            self.objects[id].y += dy;
+        }
+    }
+
+    pub fn move_towards(&mut self, id: usize, target_x: i32, target_y: i32, map: &Map) {
+        let (x, y) = self.objects[id].pos();
+        // make a vector
+        let dx = target_x - x;
+        let dy = target_y - y;
+        let distance = ((dx.pow(2) + dx.pow(2)) as f32).sqrt();
+
+        // normalize to 1
+        let dx = (dx as f32 / distance).round() as i32;
+        let dy = (dy as f32 / distance).round() as i32;
+
+        self.move_by(id, dx, dy, map);
+    }
+
+    pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, map: &Map) {
+        let x = self.get(PLAYER).x + dx;
+        let y = self.get(PLAYER).y + dy;
+
+        let target_id = self.objects.iter().position(|object| {
+            object.pos() == (x, y)
+        });
+
+        match target_id {
+            Some(target_id) => {
+                println!("The {} laughs at you", self.get(target_id).name);
+            },
+            None => {
+                self.move_by(PLAYER, dx, dy, map);
+            }
+        }
+    }
+
+    pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap) {
+        let (monster_x, monster_y) = self.get(monster_id).pos();
+
+        if fov_map.is_in_fov(monster_x, monster_y) {
+            if self.objects[monster_id].distance_to(&self.objects[PLAYER]) >= 2.0 {
+                // move towards player if far away
+                let (player_x, player_y) = self.get(PLAYER).pos();
+                self.move_towards(monster_id, player_x, player_y, map);
+            } else {
+                let monster = self.get(monster_id);
+                println!("The attack of the {} bounces off your shiny metal armor!", monster.name);
+            }
+        }
+    }
+
+    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap) {
+        for id in 0..self.objects.len() {
+            if self.objects[id].ai.is_some() {
+                self.ai_take_turn(id, &map, &fov_map);
+            }
+        }
+    }
+}
+
+
