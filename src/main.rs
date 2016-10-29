@@ -59,7 +59,7 @@ fn render_all(root: &mut Root, con: &mut Offscreen, object_manager: &mut Objects
     }
 
     // draw objects
-    object_manager.draw(con);
+    object_manager.draw(con, fov_map);
 
     // show the player's stats
     if let Some(fighter) = object_manager.get(PLAYER).fighter {
@@ -111,6 +111,7 @@ fn main() {
     player.alive = true;
     player.fighter = Some(Fighter{
         max_hp: 30, hp: 30, defense: 2, power: 5,
+        on_death: DeathCallback::Player,
     });
 
     let mut objects = vec![player];

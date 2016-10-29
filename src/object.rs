@@ -63,6 +63,13 @@ impl Object {
                 fighter.hp -= damage;
             }
         }
+
+        if let Some(fighter) = self.fighter {
+            if fighter.hp <= 0 {
+                self.alive = false;
+                fighter.on_death.callback(self);
+            }
+        }
     }
 
     pub fn attack(&mut self, target: &mut Object) {
@@ -77,11 +84,28 @@ impl Object {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DeathCallback {
+    Player,
+    Monster,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Fighter {
     pub max_hp: i32,
     pub hp: i32,
     pub defense: i32,
     pub power: i32,
+    pub on_death: DeathCallback,
+}
+
+impl DeathCallback {
+    fn callback(self, object: &mut Object) {
+        let callback: fn(&mut Object) = match self {
+            DeathCallback::Player => player_death,
+            DeathCallback::Monster => monster_death,
+        };
+        callback(object);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -107,8 +131,11 @@ impl ObjectsManager {
         }
     }
 
-    pub fn draw(&self, con: &mut Offscreen) {
-        for object in &self.objects {
+    pub fn draw(&self, con: &mut Offscreen, fov_map: &FovMap) {
+        let mut to_draw: Vec<_> = self.objects.iter().filter(|o| fov_map.is_in_fov(o.x, o.y)).collect();
+        // sort so that non-blocking objects come first
+        to_draw.sort_by(|o1, o2| { o1.blocks.cmp(&o2.blocks) });
+        for object in &to_draw {
             object.draw(con);
         }
     }
@@ -146,7 +173,7 @@ impl ObjectsManager {
         let y = self.get(PLAYER).y + dy;
 
         let target_id = self.objects.iter().position(|object| {
-            object.pos() == (x, y)
+            object.fighter.is_some() && object.pos() == (x, y)
         });
 
         match target_id {
@@ -182,6 +209,24 @@ impl ObjectsManager {
             }
         }
     }
+}
+
+fn player_death(player: &mut Object) {
+    println!("YOU DIED");
+
+    player.char = '%';
+    player.color = colors::DARK_RED;
+}
+
+fn monster_death(monster: &mut Object) {
+    // transform to a corpse
+    println!("{} is dead", monster.name);
+    monster.char = '%';
+    monster.color = colors::DARK_RED;
+    monster.blocks = false;
+    monster.fighter = None;
+    monster.ai = None;
+    monster.name = format!("remains of {}", monster.name);
 }
 
 /// Mutably borrow two *separate* elements from the given slice.
