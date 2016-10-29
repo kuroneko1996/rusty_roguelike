@@ -61,6 +61,12 @@ fn render_all(root: &mut Root, con: &mut Offscreen, object_manager: &mut Objects
     // draw objects
     object_manager.draw(con);
 
+    // show the player's stats
+    if let Some(fighter) = object_manager.get(PLAYER).fighter {
+        root.print_ex(1, SCREEN_HEIGHT - 2, BackgroundFlag::None, TextAlignment::Left,
+                        format!("HP: {}/{} ", fighter.hp, fighter.max_hp));
+    }
+
     // copy buffer
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
