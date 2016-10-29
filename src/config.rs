@@ -23,3 +23,7 @@ pub const FOV_ALGO: FovAlgorithm = FovAlgorithm::Basic;
 pub const FOV_LIGHT_WALLS: bool = true;
 pub const TORCH_RADIUS: i32 = 10;
 
+pub const MAX_ROOM_MONSTERS: i32 = 3;
+
+// player's index in objects vector
+pub const PLAYER: usize = 0;

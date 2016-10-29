@@ -22,7 +22,6 @@ use rect::*;
 fn render_all(root: &mut Root, con: &mut Offscreen, objects: &[Object], map: &mut Map, fov_map: &mut FovMap, fov_recompute: bool) {
     // draw map
     if fov_recompute {
-        println!("Fov recomputed");
         let player = &objects[0];
         fov_map.compute_fov(player.x, player.y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO);
 
@@ -84,7 +83,6 @@ fn handle_keys(root: &mut Root, player: &mut Object, map: &Map) -> bool {
     false
 }
 
-
 fn main() {
     let mut root = Root::initializer()
         .font("arial10x10.png", FontLayout::Tcod)
@@ -95,10 +93,11 @@ fn main() {
     tcod::system::set_fps(LIMIT_FPS);
     let mut con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    let (mut map, (player_start_x, player_start_y)) = make_map();
-
-    let player = Object::new(player_start_x, player_start_y, '@', colors::WHITE);
-    let mut objects = [player];
+    let player = Object::new(0, 0, '@', "player", colors::WHITE, true);
+    let mut objects = vec![player];
+    let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
+    objects[PLAYER].x = player_start_x;
+    objects[PLAYER].y = player_start_y;
 
 
     // FOV
