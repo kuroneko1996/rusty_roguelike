@@ -4,6 +4,7 @@ use tcod::map::{Map as FovMap, FovAlgorithm};
 use std::cmp;
 use config::*;
 use map::*;
+use messages::*;
 
 #[derive(Debug)]
 pub struct Object {
@@ -57,7 +58,7 @@ impl Object {
         con.put_char(self.x, self.y, ' ', BackgroundFlag::None);
     }
 
-    pub fn take_damage(&mut self, damage: i32) {
+    pub fn take_damage(&mut self, damage: i32, messages: &mut Messages) {
         if let Some(fighter) = self.fighter.as_mut() {
             if damage > 0 {
                 fighter.hp -= damage;
@@ -67,18 +68,20 @@ impl Object {
         if let Some(fighter) = self.fighter {
             if fighter.hp <= 0 {
                 self.alive = false;
-                fighter.on_death.callback(self);
+                fighter.on_death.callback(self, messages);
             }
         }
     }
 
-    pub fn attack(&mut self, target: &mut Object) {
+    pub fn attack(&mut self, target: &mut Object, messages: &mut Messages) {
         let damage = self.fighter.map_or(0, |f| f.power) - target.fighter.map_or(0, |f| f.defense);
         if damage > 0 {
-            println!("{} attacks {} for {} hit points.", self.name, target.name, damage);
-            target.take_damage(damage);
+            message(messages, format!("{} attacks {} for {} hit points.", self.name, target.name, damage),
+                    colors::WHITE);
+            target.take_damage(damage, messages);
         } else {
-            println!("{} attacks {} but it has no effect!", self.name, target.name);
+            message(messages, format!("{} attacks {} but it has no effect!", self.name, target.name),
+                    colors::WHITE);
         }
     }
 }
@@ -99,12 +102,12 @@ pub struct Fighter {
 }
 
 impl DeathCallback {
-    fn callback(self, object: &mut Object) {
-        let callback: fn(&mut Object) = match self {
+    fn callback(self, object: &mut Object, messages: &mut Messages) {
+        let callback: fn(&mut Object, &mut Messages) = match self {
             DeathCallback::Player => player_death,
             DeathCallback::Monster => monster_death,
         };
-        callback(object);
+        callback(object, messages);
     }
 }
 
@@ -168,7 +171,7 @@ impl ObjectsManager {
         self.move_by(id, dx, dy, map);
     }
 
-    pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, map: &Map) {
+    pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, map: &Map, messages: &mut Messages) {
         let x = self.get(PLAYER).x + dx;
         let y = self.get(PLAYER).y + dy;
 
@@ -179,7 +182,7 @@ impl ObjectsManager {
         match target_id {
             Some(target_id) => {
                 let (player, target) = mut_two(PLAYER, target_id, &mut self.objects);
-                player.attack(target);
+                player.attack(target, messages);
             },
             None => {
                 self.move_by(PLAYER, dx, dy, map);
@@ -187,7 +190,7 @@ impl ObjectsManager {
         }
     }
 
-    pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap) {
+    pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
         let (monster_x, monster_y) = self.get(monster_id).pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
@@ -197,30 +200,30 @@ impl ObjectsManager {
                 self.move_towards(monster_id, player_x, player_y, map);
             } else {
                 let (monster, player) = mut_two(monster_id, PLAYER, &mut self.objects);
-                monster.attack(player);
+                monster.attack(player, messages);
             }
         }
     }
 
-    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap) {
+    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
         for id in 0..self.objects.len() {
             if self.objects[id].ai.is_some() {
-                self.ai_take_turn(id, &map, &fov_map);
+                self.ai_take_turn(id, &map, &fov_map, messages);
             }
         }
     }
 }
 
-fn player_death(player: &mut Object) {
-    println!("YOU DIED");
+fn player_death(player: &mut Object, messages: &mut Messages) {
+    message(messages, "YOU DIED", colors::RED);
 
     player.char = '%';
     player.color = colors::DARK_RED;
 }
 
-fn monster_death(monster: &mut Object) {
+fn monster_death(monster: &mut Object, messages: &mut Messages) {
     // transform to a corpse
-    println!("{} is dead", monster.name);
+    message(messages, format!("{} is dead", monster.name), colors::ORANGE);
     monster.char = '%';
     monster.color = colors::DARK_RED;
     monster.blocks = false;

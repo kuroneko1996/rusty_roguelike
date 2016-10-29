@@ -11,12 +11,14 @@ mod tile;
 mod map;
 mod object;
 mod rect;
+mod messages;
 
 use config::*;
 use tile::*;
 use map::*;
 use object::*;
 use rect::*;
+use messages::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PlayerAction {
@@ -26,8 +28,8 @@ enum PlayerAction {
 }
 
 fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
-                    object_manager: &mut ObjectsManager, map: &mut Map, fov_map: &mut FovMap, 
-                    fov_recompute: bool) 
+                    object_manager: &mut ObjectsManager, map: &mut Map, messages: &Messages,
+                    fov_map: &mut FovMap, fov_recompute: bool) 
 {
     // draw map
     if fov_recompute {
@@ -65,16 +67,34 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
     // draw the gui panel
     panel.set_default_background(colors::BLACK);
     panel.clear();
+
+    // draw the messages
+    let mut y = MSG_HEIGHT as i32;
+    for &(ref msg, color) in messages.iter().rev() {
+        let msg_height = panel.get_height_rect(MSG_X, y, MSG_WIDTH, 0, msg);
+        y -= msg_height;
+        if y < 0 {
+            break;
+        }
+        panel.set_default_foreground(color);
+        panel.print_rect(MSG_X, y, MSG_WIDTH, 0, msg);
+    }
+
+    // draw stats
     let hp = object_manager.get(PLAYER).fighter.map_or(0, |f| f.hp);
     let max_hp = object_manager.get(PLAYER).fighter.map_or(0, |f| f.max_hp);
     render_bar(panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
     blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
 
+    
+
     // copy buffer
     blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
 }
 
-fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager) -> PlayerAction {
+fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, 
+    messages: &mut Messages) -> PlayerAction 
+{
     use tcod::input::Key;
     use tcod::input::KeyCode::*;
     use PlayerAction::*;
@@ -91,10 +111,10 @@ fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager) 
         },
         (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
-        (Key { code: Up, .. }, true) => { object_manager.player_move_or_attack(0, -1, map); TookTurn } ,
-        (Key { code: Down, .. }, true) => { object_manager.player_move_or_attack(0, 1, map); TookTurn },
-        (Key { code: Left, .. }, true) => { object_manager.player_move_or_attack(-1, 0, map); TookTurn },
-        (Key { code: Right, .. }, true) => { object_manager.player_move_or_attack(1, 0, map); TookTurn },
+        (Key { code: Up, .. }, true) => { object_manager.player_move_or_attack(0, -1, map, messages); TookTurn } ,
+        (Key { code: Down, .. }, true) => { object_manager.player_move_or_attack(0, 1, map, messages); TookTurn },
+        (Key { code: Left, .. }, true) => { object_manager.player_move_or_attack(-1, 0, map, messages); TookTurn },
+        (Key { code: Right, .. }, true) => { object_manager.player_move_or_attack(1, 0, map, messages); TookTurn },
 
         _ => DidntTakeTurn,
     }
@@ -142,6 +162,12 @@ fn main() {
     let mut object_manager = ObjectsManager { objects: objects };
     object_manager.get(PLAYER).set_pos(player_start_x, player_start_y);
 
+    // log messages and their colors
+    let mut messages = vec![];
+
+    // greeting
+    message(&mut messages, "Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
+
     // FOV
     let mut fov_map = FovMap::new(MAP_WIDTH, MAP_HEIGHT);
     for x in 0..MAP_WIDTH {
@@ -154,7 +180,8 @@ fn main() {
     while !root.window_closed() {
         let (player_x, player_y) = object_manager.get(PLAYER).pos();
         let fov_recompute = previous_player_position != (player_x, player_y);
-        render_all(&mut root, &mut con, &mut panel, &mut object_manager, &mut map, &mut fov_map, fov_recompute);
+        render_all(&mut root, &mut con, &mut panel, &mut object_manager, &mut map, &mut messages,
+                    &mut fov_map, fov_recompute);
 
         root.flush();
       
@@ -163,14 +190,14 @@ fn main() {
         previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(&mut root, &map, &mut object_manager);
+        let player_action = handle_keys(&mut root, &map, &mut object_manager, &mut messages);
         if player_action == PlayerAction::Exit {
             break
         }
 
         // monsters turn
         if object_manager.get(PLAYER).alive && player_action == PlayerAction::TookTurn {
-            object_manager.ai_turn(&map, &fov_map);
+            object_manager.ai_turn(&map, &fov_map, &mut messages);
         }
     }
 }
