@@ -1,6 +1,8 @@
 extern crate rand;
 
 use std::cmp;
+use std::cell::RefCell;
+
 use rand::Rng;
 use tcod::colors::{self, Color};
 
@@ -31,14 +33,14 @@ pub fn create_v_tunnel(y1: i32, y2: i32, x: i32, map: &mut Map) {
     }    
 }
 
-pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
+pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) {
     let num_monsters = rand::thread_rng().gen_range(0, MAX_ROOM_MONSTERS + 1);
 
     for _ in 0..num_monsters {
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
-        if !is_blocked(x, y, map, objects) {
+        if true {//if !is_blocked(x, y, map, objects) {
             let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
                 let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
                 orc.fighter = Some(Fighter{
@@ -57,22 +59,22 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<Object>) {
                 troll
             };
             monster.alive = true;
-            objects.push(monster);
+            objects.push(RefCell::new(monster));
         }
     }
 }
 
-pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[Object]) -> bool {
+/*pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[RefCell<Object>]) -> bool {
     if map[x as usize][y as usize].blocked {
         return true;
     }
 
-    objects.iter().any(|object| {
+    objects.iter().map(|c| c.borrow()).any(|object| {
         object.blocks && object.pos() == (x, y)
     })
-}
+}*/
 
-pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
+pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> (Map, (i32, i32)) {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
     let mut rooms = vec![];
     let mut starting_position = (0, 0);

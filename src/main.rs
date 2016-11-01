@@ -1,6 +1,7 @@
 extern crate tcod;
 extern crate rand;
 
+use std::cell::RefCell;
 use tcod::console::*;
 use tcod::colors::{self, Color};
 use tcod::map::{Map as FovMap, FovAlgorithm};
@@ -85,7 +86,6 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
     let max_hp = object_manager.get(PLAYER).fighter.map_or(0, |f| f.max_hp);
     render_bar(panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
     blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
-
     
 
     // copy buffer
@@ -156,7 +156,7 @@ fn main() {
         on_death: DeathCallback::Player,
     });
 
-    let mut objects = vec![player];
+    let mut objects = vec![RefCell::new(player)];
     let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
 
     let mut object_manager = ObjectsManager { objects: objects };

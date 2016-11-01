@@ -2,6 +2,10 @@ use tcod::console::*;
 use tcod::colors::{self, Color};
 use tcod::map::{Map as FovMap, FovAlgorithm};
 use std::cmp;
+use std::cell::RefCell;
+use std::ops::DerefMut;
+use std::ops::Deref;
+
 use config::*;
 use map::*;
 use messages::*;
@@ -115,27 +119,27 @@ impl DeathCallback {
 pub struct Ai;
 
 pub struct ObjectsManager {
-    pub objects: Vec<Object>,
+    pub objects: Vec<RefCell<Object>>,
 }
 
 impl ObjectsManager {
 
     pub fn add(&mut self, obj: Object) {
-        self.objects.push(obj);
+        self.objects.push(RefCell::new(obj));
     }
 
     pub fn get(&mut self, id: usize) -> &mut Object {
-        &mut self.objects[id]
+        &mut self.objects[id].borrow_mut()
     }
 
     pub fn draw_clear(&self, con: &mut Offscreen) {
         for object in &self.objects {
-            object.clear(con);
+            object.borrow().clear(con);
         }
     }
 
     pub fn draw(&self, con: &mut Offscreen, fov_map: &FovMap) {
-        let mut to_draw: Vec<_> = self.objects.iter().filter(|o| fov_map.is_in_fov(o.x, o.y)).collect();
+        let mut to_draw: Vec<_> = self.objects.iter().map(|c| c.borrow()).filter(|o| fov_map.is_in_fov(o.x, o.y)).collect();
         // sort so that non-blocking objects come first
         to_draw.sort_by(|o1, o2| { o1.blocks.cmp(&o2.blocks) });
         for object in &to_draw {
@@ -144,21 +148,22 @@ impl ObjectsManager {
     }
 
     pub fn move_by(&mut self, id: usize, dx: i32, dy: i32, map: &Map) {
-        let (x, y) = self.objects[id].pos();
+        let (x, y) = self.objects[id].borrow().pos();
         let new_x: i32 = x + dx;
         let new_y: i32 = y + dy;
         if new_x < 0 || new_y < 0 || new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
             return
         }
 
-        if !is_blocked(x + dx, y + dy, map, &self.objects) {
-            self.objects[id].x += dx;
-            self.objects[id].y += dy;
-        }
+        /*if !is_blocked(x + dx, y + dy, map, &self.objects) {
+            let mut object = self.objects[id].borrow_mut();
+            object.x += dx;
+            object.y += dy;
+        }*/
     }
 
     pub fn move_towards(&mut self, id: usize, target_x: i32, target_y: i32, map: &Map) {
-        let (x, y) = self.objects[id].pos();
+        let (x, y) = self.objects[id].borrow().pos();
         // make a vector
         let dx = target_x - x;
         let dy = target_y - y;
@@ -175,14 +180,16 @@ impl ObjectsManager {
         let x = self.get(PLAYER).x + dx;
         let y = self.get(PLAYER).y + dy;
 
-        let target_id = self.objects.iter().position(|object| {
+        let targets = self.objects.iter();
+
+        let target_id = self.objects.iter().map(|c| c.borrow()).position(|object| {
             object.fighter.is_some() && object.pos() == (x, y)
         });
 
         match target_id {
             Some(target_id) => {
-                let (player, target) = mut_two(PLAYER, target_id, &mut self.objects);
-                player.attack(target, messages);
+                let (mut player, mut target) = (self.objects[PLAYER].borrow_mut(), self.objects[target_id].borrow_mut());
+                player.attack(target.deref_mut(), messages);
             },
             None => {
                 self.move_by(PLAYER, dx, dy, map);
@@ -194,20 +201,20 @@ impl ObjectsManager {
         let (monster_x, monster_y) = self.get(monster_id).pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
-            if self.objects[monster_id].distance_to(&self.objects[PLAYER]) >= 2.0 {
+            if self.objects[monster_id].borrow().distance_to(self.objects[PLAYER].borrow().deref()) >= 2.0 {
                 // move towards player if far away
                 let (player_x, player_y) = self.get(PLAYER).pos();
                 self.move_towards(monster_id, player_x, player_y, map);
             } else {
-                let (monster, player) = mut_two(monster_id, PLAYER, &mut self.objects);
-                monster.attack(player, messages);
+                let (player, monster) = (self.objects[PLAYER].borrow_mut(), self.objects[monster_id].borrow_mut());
+                monster.attack(player.deref_mut(), messages);
             }
         }
     }
 
     pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
         for id in 0..self.objects.len() {
-            if self.objects[id].ai.is_some() {
+            if self.objects[id].borrow().ai.is_some() {
                 self.ai_take_turn(id, &map, &fov_map, messages);
             }
         }
