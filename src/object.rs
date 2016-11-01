@@ -206,7 +206,7 @@ impl ObjectsManager {
                 let (player_x, player_y) = self.get(PLAYER).pos();
                 self.move_towards(monster_id, player_x, player_y, map);
             } else {
-                let (player, monster) = (self.objects[PLAYER].borrow_mut(), self.objects[monster_id].borrow_mut());
+                let (mut player, mut monster) = (self.objects[PLAYER].borrow_mut(), self.objects[monster_id].borrow_mut());
                 monster.attack(player.deref_mut(), messages);
             }
         }
