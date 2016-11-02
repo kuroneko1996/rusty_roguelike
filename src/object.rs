@@ -155,11 +155,11 @@ impl ObjectsManager {
             return
         }
 
-        /*if !is_blocked(x + dx, y + dy, map, &self.objects) {
+        if !is_blocked(x + dx, y + dy, map, &self.objects) {
             let mut object = self.objects[id].borrow_mut();
             object.x += dx;
             object.y += dy;
-        }*/
+        }
     }
 
     pub fn move_towards(&mut self, id: usize, target_x: i32, target_y: i32, map: &Map) {
@@ -200,7 +200,8 @@ impl ObjectsManager {
         let (monster_x, monster_y) = self.objects[monster_id].borrow().pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
-            if self.objects[monster_id].borrow().distance_to(self.objects[PLAYER].borrow().deref()) >= 2.0 {
+            let distance = self.objects[monster_id].borrow().distance_to(self.objects[PLAYER].borrow().deref());
+            if distance >= 2.0 {
                 // move towards player if far away
                 let (player_x, player_y) = self.objects[PLAYER].borrow().pos();
                 self.move_towards(monster_id, player_x, player_y, map);

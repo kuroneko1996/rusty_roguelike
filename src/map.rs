@@ -40,7 +40,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
-        if true {//if !is_blocked(x, y, map, objects) {
+        if !is_blocked(x, y, map, objects) {
             let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
                 let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
                 orc.fighter = Some(Fighter{
@@ -64,7 +64,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
     }
 }
 
-/*pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[RefCell<Object>]) -> bool {
+pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[RefCell<Object>]) -> bool {
     if map[x as usize][y as usize].blocked {
         return true;
     }
@@ -72,7 +72,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
     objects.iter().map(|c| c.borrow()).any(|object| {
         object.blocks && object.pos() == (x, y)
     })
-}*/
+}
 
 pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> (Map, (i32, i32)) {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
