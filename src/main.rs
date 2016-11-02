@@ -4,8 +4,8 @@ extern crate rand;
 use std::cell::RefCell;
 use tcod::console::*;
 use tcod::colors::{self, Color};
-use tcod::map::{Map as FovMap, FovAlgorithm};
-use rand::Rng;
+use tcod::map::{Map as FovMap};
+use tcod::input::{self, Event, Mouse, Key};
 
 mod config;
 mod tile;
@@ -15,10 +15,8 @@ mod rect;
 mod messages;
 
 use config::*;
-use tile::*;
 use map::*;
 use object::*;
-use rect::*;
 use messages::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -28,7 +26,7 @@ enum PlayerAction {
     Exit,
 }
 
-fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
+fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen, mouse: Mouse,
                     object_manager: &mut ObjectsManager, map: &mut Map, messages: &Messages,
                     fov_map: &mut FovMap, fov_recompute: bool) 
 {
@@ -65,6 +63,9 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
     // draw objects
     object_manager.draw(con, fov_map);
 
+    // copy buffer
+    blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
+
     // draw the gui panel
     panel.set_default_background(colors::BLACK);
     panel.clear();
@@ -82,27 +83,28 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
     }
 
     // draw stats
-    let player = object_manager.objects[PLAYER].borrow();
-    let hp = player.fighter.map_or(0, |f| f.hp);
-    let max_hp = player.fighter.map_or(0, |f| f.max_hp);
-    render_bar(panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
-    blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
+    {
+        let player = object_manager.objects[PLAYER].borrow();
+        let hp = player.fighter.map_or(0, |f| f.hp);
+        let max_hp = player.fighter.map_or(0, |f| f.max_hp);
+        render_bar(panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
+    }
     
 
-    // copy buffer
-    blit(con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), root, (0, 0), 1.0, 1.0);
+    // display names under mouse
+    panel.set_default_foreground(colors::LIGHT_GREY);
+    panel.print_ex(1, 0, BackgroundFlag::None, TextAlignment::Left, get_names_under_mouse(mouse, object_manager, fov_map));
+    blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
 }
 
-fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, 
+fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, 
     messages: &mut Messages) -> PlayerAction 
 {
-    use tcod::input::Key;
     use tcod::input::KeyCode::*;
     use PlayerAction::*;
 
     let is_alive = object_manager.objects[PLAYER].borrow().alive;
 
-    let key = root.wait_for_keypress(true);
     match (key, is_alive) {
         // Alt Enter fullscreen
         (Key { code: Enter, alt: true, ..}, _) => {
@@ -137,6 +139,19 @@ fn render_bar(panel: &mut Offscreen, x: i32, y: i32, total_width: i32, name: &st
     panel.set_default_foreground(colors::WHITE);
     panel.print_ex(x + total_width / 2, y, BackgroundFlag::None, TextAlignment::Center, 
         format!("{}: {}/{}", name, value, maximum));
+}
+
+fn get_names_under_mouse(mouse: Mouse, object_manager: &mut ObjectsManager, fov_map: &FovMap) -> String {
+    let (x, y) = (mouse.cx as i32, mouse.cy as i32);
+
+    let names = object_manager.objects
+        .iter()
+        .map(|c| c.borrow())
+        .filter(|obj| {obj.pos() == (x, y) && fov_map.is_in_fov(obj.x, obj.y)})
+        .map(|obj| obj.name.clone())
+        .collect::<Vec<_>>();
+
+    names.join(", ")
 }
 
 fn main() {
@@ -178,10 +193,22 @@ fn main() {
     }
     let mut previous_player_position = (-1, -1);
 
+    let mut mouse = Default::default();
+    let mut key = Default::default();
+
     while !root.window_closed() {
         let (player_x, player_y) = object_manager.objects[PLAYER].borrow().pos();
         let fov_recompute = previous_player_position != (player_x, player_y);
-        render_all(&mut root, &mut con, &mut panel, &mut object_manager, &mut map, &mut messages,
+
+        match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
+            Some((_, Event::Mouse(m))) => mouse = m,
+            Some((_, Event::Key(k))) => key = k,
+            _ => key = Default::default(),
+        }
+
+
+
+        render_all(&mut root, &mut con, &mut panel, mouse, &mut object_manager, &mut map, &mut messages,
                     &mut fov_map, fov_recompute);
 
         root.flush();
@@ -191,7 +218,7 @@ fn main() {
         previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(&mut root, &map, &mut object_manager, &mut messages);
+        let player_action = handle_keys(key, &mut root, &map, &mut object_manager, &mut messages);
         if player_action == PlayerAction::Exit {
             break
         }

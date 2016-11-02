@@ -1,4 +1,4 @@
-use tcod::colors::{self, Color};
+use tcod::colors::Color;
 use tcod::map::FovAlgorithm;
 
 pub const SCREEN_WIDTH: i32 = 80;

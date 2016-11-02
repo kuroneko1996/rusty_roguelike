@@ -4,7 +4,7 @@ use std::cmp;
 use std::cell::RefCell;
 
 use rand::Rng;
-use tcod::colors::{self, Color};
+use tcod::colors::{self};
 
 use config::*;
 use tile::*;

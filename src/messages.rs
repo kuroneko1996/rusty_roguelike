@@ -1,5 +1,5 @@
 use config::*;
-use tcod::colors::{self, Color};
+use tcod::colors::{Color};
 
 pub type Messages = Vec<(String, Color)>;
 
