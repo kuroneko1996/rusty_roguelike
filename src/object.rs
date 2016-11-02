@@ -128,9 +128,9 @@ impl ObjectsManager {
         self.objects.push(RefCell::new(obj));
     }
 
-    pub fn get(&mut self, id: usize) -> &mut Object {
-        &mut self.objects[id].borrow_mut()
-    }
+    /*pub fn get(&mut self, id: usize) -> &mut Object {
+        self.objects[id].borrow_mut().deref_mut()
+    }*/
 
     pub fn draw_clear(&self, con: &mut Offscreen) {
         for object in &self.objects {
@@ -177,8 +177,9 @@ impl ObjectsManager {
     }
 
     pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, map: &Map, messages: &mut Messages) {
-        let x = self.get(PLAYER).x + dx;
-        let y = self.get(PLAYER).y + dy;
+        let (mut x, mut y) = self.objects[PLAYER].borrow().pos();
+        x += dx;
+        y += dy;
 
         let targets = self.objects.iter();
 
@@ -198,12 +199,12 @@ impl ObjectsManager {
     }
 
     pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
-        let (monster_x, monster_y) = self.get(monster_id).pos();
+        let (monster_x, monster_y) = self.objects[monster_id].borrow().pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
             if self.objects[monster_id].borrow().distance_to(self.objects[PLAYER].borrow().deref()) >= 2.0 {
                 // move towards player if far away
-                let (player_x, player_y) = self.get(PLAYER).pos();
+                let (player_x, player_y) = self.objects[PLAYER].borrow().pos();
                 self.move_towards(monster_id, player_x, player_y, map);
             } else {
                 let (mut player, mut monster) = (self.objects[PLAYER].borrow_mut(), self.objects[monster_id].borrow_mut());

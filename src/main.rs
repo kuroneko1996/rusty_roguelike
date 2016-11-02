@@ -34,7 +34,7 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
 {
     // draw map
     if fov_recompute {
-        let player = object_manager.get(PLAYER);
+        let player = object_manager.objects[PLAYER].borrow();
         fov_map.compute_fov(player.x, player.y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO);
 
         for y in 0..MAP_HEIGHT {
@@ -82,8 +82,9 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen,
     }
 
     // draw stats
-    let hp = object_manager.get(PLAYER).fighter.map_or(0, |f| f.hp);
-    let max_hp = object_manager.get(PLAYER).fighter.map_or(0, |f| f.max_hp);
+    let player = object_manager.objects[PLAYER].borrow();
+    let hp = player.fighter.map_or(0, |f| f.hp);
+    let max_hp = player.fighter.map_or(0, |f| f.max_hp);
     render_bar(panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
     blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
     
@@ -99,7 +100,7 @@ fn handle_keys(root: &mut Root, map: &Map, object_manager: &mut ObjectsManager,
     use tcod::input::KeyCode::*;
     use PlayerAction::*;
 
-    let is_alive = object_manager.get(PLAYER).alive;
+    let is_alive = object_manager.objects[PLAYER].borrow().alive;
 
     let key = root.wait_for_keypress(true);
     match (key, is_alive) {
@@ -160,7 +161,7 @@ fn main() {
     let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
 
     let mut object_manager = ObjectsManager { objects: objects };
-    object_manager.get(PLAYER).set_pos(player_start_x, player_start_y);
+    object_manager.objects[PLAYER].borrow_mut().set_pos(player_start_x, player_start_y);
 
     // log messages and their colors
     let mut messages = vec![];
@@ -178,7 +179,7 @@ fn main() {
     let mut previous_player_position = (-1, -1);
 
     while !root.window_closed() {
-        let (player_x, player_y) = object_manager.get(PLAYER).pos();
+        let (player_x, player_y) = object_manager.objects[PLAYER].borrow().pos();
         let fov_recompute = previous_player_position != (player_x, player_y);
         render_all(&mut root, &mut con, &mut panel, &mut object_manager, &mut map, &mut messages,
                     &mut fov_map, fov_recompute);
@@ -196,7 +197,7 @@ fn main() {
         }
 
         // monsters turn
-        if object_manager.get(PLAYER).alive && player_action == PlayerAction::TookTurn {
+        if object_manager.objects[PLAYER].borrow().alive && player_action == PlayerAction::TookTurn {
             object_manager.ai_turn(&map, &fov_map, &mut messages);
         }
     }
