@@ -181,9 +181,7 @@ impl ObjectsManager {
         x += dx;
         y += dy;
 
-        let targets = self.objects.iter();
-
-        let target_id = self.objects.iter().map(|c| c.borrow()).position(|object| {
+        let target_id = self.objects.iter_mut().map(|c| c.borrow()).position(|object| {
             object.fighter.is_some() && object.pos() == (x, y)
         });
 
