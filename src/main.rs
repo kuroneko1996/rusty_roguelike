@@ -104,7 +104,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Ma
     blit(&tcod.panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), &mut tcod.root, (0, PANEL_Y), 1.0, 1.0);
 }
 
-fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>,
+fn handle_keys(key: Key, tcod: &mut Tcod, map: &Map, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>,
     messages: &mut Messages) -> PlayerAction 
 {
     use tcod::input::KeyCode::*;
@@ -115,8 +115,8 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
     match (key, is_alive) {
         // Alt Enter fullscreen
         (Key { code: Enter, alt: true, ..}, _) => {
-            let fullscreen = root.is_fullscreen();
-            root.set_fullscreen(!fullscreen);
+            let fullscreen = tcod.root.is_fullscreen();
+            tcod.root.set_fullscreen(!fullscreen);
             DidntTakeTurn
         },
         (Key { code: Escape, ..}, _) => Exit, // Exit game
@@ -158,7 +158,7 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         },
         // Help screen
         (Key { printable: '?', .. }, true) | (Key { printable: '/', .. }, true) => { 
-            show_help(root);
+            show_help(&mut tcod.root);
             DidntTakeTurn
         }
         // Inventory
@@ -175,7 +175,7 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         },
         (Key {printable: 'd', .. }, true) => {
             let inventory_index = inventory_menu(inventory, "Press the key next to an item to DROP it, or any other to cancel.\n",
-                root);
+                &mut tcod.root);
 
             if let Some(inventory_index) = inventory_index {
                 drop_item(inventory_index, inventory, object_manager, messages);
@@ -184,7 +184,7 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         },
         (Key {printable: 'i', .. }, true) => {
             let inventory_index = inventory_menu(inventory, "Press the key next to an item to USE it, or any other to cancel.\n",
-                root);
+                &mut tcod.root);
 
             if let Some(inventory_index) = inventory_index {
                 use_item(inventory_index, inventory, object_manager, messages);
@@ -373,7 +373,7 @@ fn main() {
         previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(key, &mut tcod.root, &map, &mut object_manager, &mut inventory, &mut messages);
+        let player_action = handle_keys(key, &mut tcod, &map, &mut object_manager, &mut inventory, &mut messages);
         if player_action == PlayerAction::Exit {
             break
         }
