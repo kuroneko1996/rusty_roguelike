@@ -20,6 +20,7 @@ pub struct Object {
     pub alive: bool,
     pub fighter: Option<Fighter>,
     pub ai: Option<Ai>,
+    pub item: Option<Item>,
 }
 
 impl Object {
@@ -34,6 +35,7 @@ impl Object {
             alive: false,
             fighter: None,
             ai: None,
+            item: None,
         }
     }
 
@@ -102,6 +104,11 @@ pub struct Fighter {
     pub defense: i32,
     pub power: i32,
     pub on_death: DeathCallback,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Item {
+    Heal,
 }
 
 impl DeathCallback {
@@ -236,4 +243,14 @@ fn monster_death(monster: &mut Object, messages: &mut Messages) {
     monster.fighter = None;
     monster.ai = None;
     monster.name = format!("remains of {}", monster.name);
+}
+
+pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>, messages: &mut Messages) {
+    if inventory.len() >= MAX_INVENTORY_SIZE as usize {
+        message(messages, format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
+    } else {
+        let item = object_manager.objects.swap_remove(object_id);
+        message(messages, format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
+        inventory.push(item);
+    }
 }

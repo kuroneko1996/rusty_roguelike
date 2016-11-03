@@ -97,7 +97,7 @@ fn render_all(root: &mut Root, con: &mut Offscreen, panel: &mut Offscreen, mouse
     blit(panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), root, (0, PANEL_Y), 1.0, 1.0);
 }
 
-fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, 
+fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>,
     messages: &mut Messages) -> PlayerAction 
 {
     use tcod::input::KeyCode::*;
@@ -118,7 +118,18 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         (Key { code: Down, .. }, true) => { object_manager.player_move_or_attack(0, 1, map, messages); TookTurn },
         (Key { code: Left, .. }, true) => { object_manager.player_move_or_attack(-1, 0, map, messages); TookTurn },
         (Key { code: Right, .. }, true) => { object_manager.player_move_or_attack(1, 0, map, messages); TookTurn },
-
+        // Inventory
+        (Key { printable: 'g', .. }, true) => {
+            let player_pos = object_manager.objects[PLAYER].borrow().pos();
+            // pick up an item
+            let item_id = object_manager.objects.iter().map(|c| c.borrow()).position(|object| {
+                object.pos() == player_pos && object.item.is_some()
+            });
+            if let Some(item_id) = item_id {
+                pick_item_up(item_id, object_manager, inventory, messages);
+            }
+            DidntTakeTurn
+        },
         _ => DidntTakeTurn,
     }
 }
@@ -181,6 +192,9 @@ fn main() {
     // log messages and their colors
     let mut messages = vec![];
 
+    // items
+    let mut inventory: Vec<RefCell<Object>> = vec![];
+
     // greeting
     message(&mut messages, "Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
 
@@ -218,7 +232,7 @@ fn main() {
         previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(key, &mut root, &map, &mut object_manager, &mut messages);
+        let player_action = handle_keys(key, &mut root, &map, &mut object_manager, &mut inventory, &mut messages);
         if player_action == PlayerAction::Exit {
             break
         }
