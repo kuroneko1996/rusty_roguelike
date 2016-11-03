@@ -139,10 +139,6 @@ pub struct ObjectsManager {
 
 impl ObjectsManager {
 
-    pub fn add(&mut self, obj: Object) {
-        self.objects.push(RefCell::new(obj));
-    }
-
     pub fn draw_clear(&self, con: &mut Offscreen) {
         for object in &self.objects {
             object.borrow().clear(con);
@@ -287,6 +283,19 @@ pub fn use_item(inventory_id: usize, inventory: &mut Vec<RefCell<Object>>, objec
             message(messages, "Cancelled", colors::WHITE);
         }
     }
+}
+
+pub fn drop_item(inventory_id: usize, inventory: &mut Vec<RefCell<Object>>, object_manager: &mut ObjectsManager, 
+                 messages: &mut Messages) 
+{
+    let item_cell = inventory.remove(inventory_id);
+    {
+        let mut item = item_cell.borrow_mut();
+        let player = object_manager.objects[PLAYER].borrow();
+        item.set_pos(player.x, player.y);
+        message(messages, format!("You dropped a {}.", item.name), colors::YELLOW);
+    }
+    object_manager.objects.push(item_cell);
 }
 
 fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, messages: &mut Messages) -> UseResult {

@@ -166,8 +166,17 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
             }
             DidntTakeTurn
         },
+        (Key {printable: 'd', .. }, true) => {
+            let inventory_index = inventory_menu(inventory, "Press the key next to an item to DROP it, or any other to cancel.\n",
+                root);
+
+            if let Some(inventory_index) = inventory_index {
+                drop_item(inventory_index, inventory, object_manager, messages);
+            }
+            DidntTakeTurn
+        },
         (Key {printable: 'i', .. }, true) => {
-            let inventory_index = inventory_menu(inventory, "Press the key next to item to use it, or any other to cancel.\n",
+            let inventory_index = inventory_menu(inventory, "Press the key next to an item to USE it, or any other to cancel.\n",
                 root);
 
             if let Some(inventory_index) = inventory_index {
@@ -270,7 +279,9 @@ fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Root) 
 
 fn show_help(root: &mut Root) {
     let width = HELP_WIDTH;
-    let help_text = "Press arrows or numpad buttons to move. Use 'i' to open an inventory, 'g' to pick up items. '?' or '/' for this help. Press any key to close this window.";
+    let help_text = "Press arrows or numpad buttons to move. Use 'g' to pick up items, \
+                    'i' to open an inventory, 'd' to drop item. '?' or '/' for this help. \
+                    Press any key to close this window.";
     let height = 8;
 
     let mut window = Offscreen::new(width, height);
