@@ -8,6 +8,7 @@ use std::ops::Deref;
 use config::*;
 use map::*;
 use messages::*;
+use game::Game;
 
 #[derive(Debug)]
 pub struct Object {
@@ -183,7 +184,7 @@ impl ObjectsManager {
         self.move_by(id, dx, dy, map);
     }
 
-    pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, map: &Map, messages: &mut Messages) {
+    pub fn player_move_or_attack(&mut self, dx: i32, dy: i32, game: &mut Game) {
         let (mut x, mut y) = self.objects[PLAYER].borrow().pos();
         x += dx;
         y += dy;
@@ -195,10 +196,10 @@ impl ObjectsManager {
         match target_id {
             Some(target_id) => {
                 let (mut player, mut target) = (self.objects[PLAYER].borrow_mut(), self.objects[target_id].borrow_mut());
-                player.attack(target.deref_mut(), messages);
+                player.attack(target.deref_mut(), &mut game.log);
             },
             None => {
-                self.move_by(PLAYER, dx, dy, map);
+                self.move_by(PLAYER, dx, dy, &game.map);
             }
         }
     }
@@ -246,13 +247,13 @@ fn monster_death(monster: &mut Object, messages: &mut Messages) {
     monster.name = format!("remains of {}", monster.name);
 }
 
-pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>, messages: &mut Messages) {
-    if inventory.len() >= MAX_INVENTORY_SIZE as usize {
-        message(messages, format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
+pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) {
+    if game.inventory.len() >= MAX_INVENTORY_SIZE as usize {
+        message(&mut game.log, format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
     } else {
         let item = object_manager.objects.swap_remove(object_id);
-        message(messages, format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
-        inventory.push(item);
+        message(&mut game.log, format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
+        game.inventory.push(item);
     }
 }
 
@@ -261,55 +262,53 @@ pub enum UseResult {
     Cancelled,
 }
 
-pub fn use_item(inventory_id: usize, inventory: &mut Vec<RefCell<Object>>, object_manager: &mut ObjectsManager,
-                messages: &mut Messages) 
+pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) 
 {
-    let item = inventory[inventory_id].borrow().item;
+    let item = game.inventory[inventory_id].borrow().item;
     
     let on_use = match item {
         Some(Item::Heal) => cast_heal,
         None => {
-            message(messages, format!("The {} cannot be used.", inventory[inventory_id].borrow().name), colors::WHITE);
+            message(&mut game.log, format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
             return
         },
     };
 
-    match on_use(inventory_id, object_manager, messages) {
+    match on_use(inventory_id, object_manager, game) {
         UseResult::UsedUp => {
             // destroy after use
-            inventory.remove(inventory_id);
+            game.inventory.remove(inventory_id);
         },
         UseResult::Cancelled => {
-            message(messages, "Cancelled", colors::WHITE);
+            message(&mut game.log, "Cancelled", colors::WHITE);
         }
     }
 }
 
-pub fn drop_item(inventory_id: usize, inventory: &mut Vec<RefCell<Object>>, object_manager: &mut ObjectsManager, 
-                 messages: &mut Messages) 
+pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) 
 {
-    let item_cell = inventory.remove(inventory_id);
+    let item_cell = game.inventory.remove(inventory_id);
     {
         let mut item = item_cell.borrow_mut();
         let player = object_manager.objects[PLAYER].borrow();
         item.set_pos(player.x, player.y);
-        message(messages, format!("You dropped a {}.", item.name), colors::YELLOW);
+        message(&mut game.log, format!("You dropped a {}.", item.name), colors::YELLOW);
     }
     object_manager.objects.push(item_cell);
 }
 
-fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, messages: &mut Messages) -> UseResult {
+fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) -> UseResult {
     let mut is_fighter = false;
     if let Some(fighter) = object_manager.objects[PLAYER].borrow().fighter {
         if fighter.hp == fighter.max_hp {
-            message(messages, "You are already at full health.", colors::RED);
+            message(&mut game.log, "You are already at full health.", colors::RED);
             return UseResult::Cancelled;
         }
         is_fighter = true;
     }
 
     if is_fighter {
-        message(messages, "Your wounds start to feel better!", colors::LIGHT_VIOLET);
+        message(&mut game.log, "Your wounds start to feel better!", colors::LIGHT_VIOLET);
         object_manager.objects[PLAYER].borrow_mut().heal(HEAL_AMOUNT);
         return UseResult::UsedUp;
     }

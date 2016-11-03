@@ -87,10 +87,9 @@ pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[RefCell<Object>]) -> boo
     })
 }
 
-pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> (Map, (i32, i32)) {
+pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
     let mut rooms = vec![];
-    let mut starting_position = (0, 0);
 
     for _ in 0..MAX_ROOMS {
         let w = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE + 1);
@@ -107,8 +106,8 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> (Map, (i32, i32)) {
             place_objects(new_room, &map, objects);
             let (new_x, new_y) = new_room.center();
 
-            if rooms.is_empty() {
-                starting_position = (new_x, new_y);
+            if rooms.is_empty() { // first room
+                objects[PLAYER].borrow_mut().set_pos(new_x, new_y);
             } else {
                 // connect the room to the previous room with a tunnel
                 let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
@@ -127,5 +126,5 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> (Map, (i32, i32)) {
         }
     }
 
-    (map, starting_position)
+    map
 }

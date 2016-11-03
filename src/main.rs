@@ -13,11 +13,13 @@ mod map;
 mod object;
 mod rect;
 mod messages;
+mod game;
 
 use config::*;
 use map::*;
 use object::*;
 use messages::*;
+use game::*;
 
 struct Tcod {
     root: Root,
@@ -34,7 +36,7 @@ enum PlayerAction {
     Exit,
 }
 
-fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Map, messages: &Messages,
+fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut Game,
               fov_recompute: bool) 
 {
     // draw map
@@ -44,7 +46,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Ma
 
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {
-                let wall = map[x as usize][y as usize].block_sight;
+                let wall = game.map[x as usize][y as usize].block_sight;
                 let visible = tcod.fov.is_in_fov(x, y);
                 let color = match (visible, wall) {
                     // outside fov
@@ -56,7 +58,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Ma
                 };
 
                 // render only explored tiles
-                let explored = &mut map[x as usize][y as usize].explored;
+                let explored = &mut game.map[x as usize][y as usize].explored;
                 if visible {
                     *explored = true;
                 }
@@ -79,7 +81,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Ma
 
     // draw the messages
     let mut y = MSG_HEIGHT as i32;
-    for &(ref msg, color) in messages.iter().rev() {
+    for &(ref msg, color) in game.log.iter().rev() {
         let msg_height = tcod.panel.get_height_rect(MSG_X, y, MSG_WIDTH, 0, msg);
         y -= msg_height;
         if y < 0 {
@@ -104,8 +106,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, map: &mut Ma
     blit(&tcod.panel, (0, 0), (SCREEN_WIDTH, PANEL_HEIGHT), &mut tcod.root, (0, PANEL_Y), 1.0, 1.0);
 }
 
-fn handle_keys(key: Key, tcod: &mut Tcod, map: &Map, object_manager: &mut ObjectsManager, inventory: &mut Vec<RefCell<Object>>,
-    messages: &mut Messages) -> PlayerAction 
+fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut ObjectsManager) -> PlayerAction 
 {
     use tcod::input::KeyCode::*;
     use PlayerAction::*;
@@ -122,35 +123,35 @@ fn handle_keys(key: Key, tcod: &mut Tcod, map: &Map, object_manager: &mut Object
         (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
         (Key { code: Up, .. }, true) | (Key { code: NumPad8, .. }, true) => {
-            object_manager.player_move_or_attack(0, -1, map, messages);
+            object_manager.player_move_or_attack(0, -1, game);
             TookTurn 
         },
         (Key { code: Down, .. }, true) | (Key { code: NumPad2, .. }, true) => {
-            object_manager.player_move_or_attack(0, 1, map, messages);
+            object_manager.player_move_or_attack(0, 1, game);
             TookTurn 
         },
         (Key { code: Left, .. }, true) | (Key { code: NumPad4, .. }, true) => {
-            object_manager.player_move_or_attack(-1, 0, map, messages);
+            object_manager.player_move_or_attack(-1, 0, game);
             TookTurn 
         },
         (Key { code: Right, .. }, true) | (Key { code: NumPad6, .. }, true) => {
-            object_manager.player_move_or_attack(1, 0, map, messages);
+            object_manager.player_move_or_attack(1, 0, game);
             TookTurn 
         },
         (Key { code: Home, .. }, true) | (Key { code: NumPad7, .. }, true) => {
-            object_manager.player_move_or_attack(-1, -1, map, messages);
+            object_manager.player_move_or_attack(-1, -1, game);
             TookTurn 
         },
         (Key { code: PageUp, .. }, true) | (Key { code: NumPad9, .. }, true) => {
-            object_manager.player_move_or_attack(1, -1, map, messages);
+            object_manager.player_move_or_attack(1, -1, game);
             TookTurn 
         },
         (Key { code: End, .. }, true) | (Key { code: NumPad1, .. }, true) => {
-            object_manager.player_move_or_attack(-1, 1, map, messages);
+            object_manager.player_move_or_attack(-1, 1, game);
             TookTurn 
         },
         (Key { code: PageDown, .. }, true) | (Key { code: NumPad3, .. }, true) => {
-            object_manager.player_move_or_attack(1, 1, map, messages);
+            object_manager.player_move_or_attack(1, 1, game);
             TookTurn 
         },
         (Key { code: NumPad5, .. }, true) => { // wait for turn
@@ -169,25 +170,25 @@ fn handle_keys(key: Key, tcod: &mut Tcod, map: &Map, object_manager: &mut Object
                 object.pos() == player_pos && object.item.is_some()
             });
             if let Some(item_id) = item_id {
-                pick_item_up(item_id, object_manager, inventory, messages);
+                pick_item_up(item_id, object_manager, game);
             }
             DidntTakeTurn
         },
         (Key {printable: 'd', .. }, true) => {
-            let inventory_index = inventory_menu(inventory, "Press the key next to an item to DROP it, or any other to cancel.\n",
+            let inventory_index = inventory_menu(&game.inventory, "Press the key next to an item to DROP it, or any other to cancel.\n",
                 &mut tcod.root);
 
             if let Some(inventory_index) = inventory_index {
-                drop_item(inventory_index, inventory, object_manager, messages);
+                drop_item(inventory_index, object_manager, game);
             }
             DidntTakeTurn
         },
         (Key {printable: 'i', .. }, true) => {
-            let inventory_index = inventory_menu(inventory, "Press the key next to an item to USE it, or any other to cancel.\n",
+            let inventory_index = inventory_menu(&game.inventory, "Press the key next to an item to USE it, or any other to cancel.\n",
                 &mut tcod.root);
 
             if let Some(inventory_index) = inventory_index {
-                use_item(inventory_index, inventory, object_manager, messages);
+                use_item(inventory_index, object_manager, game);
             }
             DidntTakeTurn
         },
@@ -329,24 +330,22 @@ fn main() {
     });
 
     let mut objects = vec![RefCell::new(player)];
-    let (mut map, (player_start_x, player_start_y)) = make_map(&mut objects);
+
+    let mut game = Game {
+        map: make_map(&mut objects),
+        log: vec![], // messages here
+        inventory: vec![],
+    };
 
     let mut object_manager = ObjectsManager { objects: objects };
-    object_manager.objects[PLAYER].borrow_mut().set_pos(player_start_x, player_start_y);
-
-    // log messages and their colors
-    let mut messages = vec![];
-
-    // items
-    let mut inventory: Vec<RefCell<Object>> = vec![];
 
     // greeting
-    message(&mut messages, "Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
+    message(&mut game.log, "Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
 
     // FOV
     for x in 0..MAP_WIDTH {
         for y in 0..MAP_HEIGHT {
-            tcod.fov.set(x, y, !map[x as usize][y as usize].block_sight, !map[x as usize][y as usize].blocked)
+            tcod.fov.set(x, y, !game.map[x as usize][y as usize].block_sight, !game.map[x as usize][y as usize].blocked)
         }
     }
     let mut previous_player_position = (-1, -1);
@@ -364,7 +363,7 @@ fn main() {
         }
 
 
-        render_all(&mut tcod, &mut object_manager, &mut map, &mut messages, fov_recompute);
+        render_all(&mut tcod, &mut object_manager, &mut game, fov_recompute);
 
         tcod.root.flush();
       
@@ -373,14 +372,14 @@ fn main() {
         previous_player_position = (player_x, player_y);
 
         // player's turn
-        let player_action = handle_keys(key, &mut tcod, &map, &mut object_manager, &mut inventory, &mut messages);
+        let player_action = handle_keys(key, &mut tcod, &mut game, &mut object_manager);
         if player_action == PlayerAction::Exit {
             break
         }
 
         // monsters turn
         if object_manager.objects[PLAYER].borrow().alive && player_action == PlayerAction::TookTurn {
-            object_manager.ai_turn(&map, &tcod.fov, &mut messages);
+            object_manager.ai_turn(&game.map, &tcod.fov, &mut game.log);
         }
     }
 }
