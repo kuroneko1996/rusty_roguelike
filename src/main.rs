@@ -114,10 +114,41 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         },
         (Key { code: Escape, ..}, _) => Exit, // Exit game
         // Movement
-        (Key { code: Up, .. }, true) => { object_manager.player_move_or_attack(0, -1, map, messages); TookTurn } ,
-        (Key { code: Down, .. }, true) => { object_manager.player_move_or_attack(0, 1, map, messages); TookTurn },
-        (Key { code: Left, .. }, true) => { object_manager.player_move_or_attack(-1, 0, map, messages); TookTurn },
-        (Key { code: Right, .. }, true) => { object_manager.player_move_or_attack(1, 0, map, messages); TookTurn },
+        (Key { code: Up, .. }, true) | (Key { code: NumPad8, .. }, true) => {
+            object_manager.player_move_or_attack(0, -1, map, messages);
+            TookTurn 
+        },
+        (Key { code: Down, .. }, true) | (Key { code: NumPad2, .. }, true) => {
+            object_manager.player_move_or_attack(0, 1, map, messages);
+            TookTurn 
+        },
+        (Key { code: Left, .. }, true) | (Key { code: NumPad4, .. }, true) => {
+            object_manager.player_move_or_attack(-1, 0, map, messages);
+            TookTurn 
+        },
+        (Key { code: Right, .. }, true) | (Key { code: NumPad6, .. }, true) => {
+            object_manager.player_move_or_attack(1, 0, map, messages);
+            TookTurn 
+        },
+        (Key { code: Home, .. }, true) | (Key { code: NumPad7, .. }, true) => {
+            object_manager.player_move_or_attack(-1, -1, map, messages);
+            TookTurn 
+        },
+        (Key { code: PageUp, .. }, true) | (Key { code: NumPad9, .. }, true) => {
+            object_manager.player_move_or_attack(1, -1, map, messages);
+            TookTurn 
+        },
+        (Key { code: End, .. }, true) | (Key { code: NumPad1, .. }, true) => {
+            object_manager.player_move_or_attack(-1, 1, map, messages);
+            TookTurn 
+        },
+        (Key { code: PageDown, .. }, true) | (Key { code: NumPad3, .. }, true) => {
+            object_manager.player_move_or_attack(1, 1, map, messages);
+            TookTurn 
+        },
+        (Key { code: NumPad5, .. }, true) => { // wait for turn
+            TookTurn 
+        },
         // Inventory
         (Key { printable: 'g', .. }, true) => {
             let player_pos = object_manager.objects[PLAYER].borrow().pos();
