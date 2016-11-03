@@ -89,6 +89,15 @@ impl Object {
                     colors::WHITE);
         }
     }
+
+    pub fn heal(&mut self, amount: i32) {
+        if let Some(ref mut fighter) = self.fighter {
+            fighter.hp += amount;
+            if fighter.hp > fighter.max_hp {
+                fighter.hp = fighter.max_hp;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -133,10 +142,6 @@ impl ObjectsManager {
     pub fn add(&mut self, obj: Object) {
         self.objects.push(RefCell::new(obj));
     }
-
-    /*pub fn get(&mut self, id: usize) -> &mut Object {
-        self.objects[id].borrow_mut().deref_mut()
-    }*/
 
     pub fn draw_clear(&self, con: &mut Offscreen) {
         for object in &self.objects {
@@ -253,4 +258,52 @@ pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, inven
         message(messages, format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
         inventory.push(item);
     }
+}
+
+pub enum UseResult {
+    UsedUp,
+    Cancelled,
+}
+
+pub fn use_item(inventory_id: usize, inventory: &mut Vec<RefCell<Object>>, object_manager: &mut ObjectsManager,
+                messages: &mut Messages) 
+{
+    let item = inventory[inventory_id].borrow().item;
+    
+    let on_use = match item {
+        Some(Item::Heal) => cast_heal,
+        None => {
+            message(messages, format!("The {} cannot be used.", inventory[inventory_id].borrow().name), colors::WHITE);
+            return
+        },
+    };
+
+    match on_use(inventory_id, object_manager, messages) {
+        UseResult::UsedUp => {
+            // destroy after use
+            inventory.remove(inventory_id);
+        },
+        UseResult::Cancelled => {
+            message(messages, "Cancelled", colors::WHITE);
+        }
+    }
+}
+
+fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, messages: &mut Messages) -> UseResult {
+    let mut is_fighter = false;
+    if let Some(fighter) = object_manager.objects[PLAYER].borrow().fighter {
+        if fighter.hp == fighter.max_hp {
+            message(messages, "You are already at full health.", colors::RED);
+            return UseResult::Cancelled;
+        }
+        is_fighter = true;
+    }
+
+    if is_fighter {
+        message(messages, "Your wounds start to feel better!", colors::LIGHT_VIOLET);
+        object_manager.objects[PLAYER].borrow_mut().heal(HEAL_AMOUNT);
+        return UseResult::UsedUp;
+    }
+
+    UseResult::Cancelled
 }

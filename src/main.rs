@@ -130,6 +130,15 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
             }
             DidntTakeTurn
         },
+        (Key {printable: 'i', .. }, true) => {
+            let inventory_index = inventory_menu(inventory, "Press the key next to item to use it, or any other to cancel.\n",
+                root);
+
+            if let Some(inventory_index) = inventory_index {
+                use_item(inventory_index, inventory, object_manager, messages);
+            }
+            DidntTakeTurn
+        },
         _ => DidntTakeTurn,
     }
 }
@@ -163,6 +172,64 @@ fn get_names_under_mouse(mouse: Mouse, object_manager: &mut ObjectsManager, fov_
         .collect::<Vec<_>>();
 
     names.join(", ")
+}
+
+fn menu<T: AsRef<str>>(header: &str, options: &[T], width: i32, root: &mut Root) -> Option<usize> {
+    use std::ascii::AsciiExt;
+
+    assert!(options.len() <= MAX_INVENTORY_SIZE as usize, 
+        format!("Cannot have a menu with more than {} options", MAX_INVENTORY_SIZE));
+
+    // calculate height of the window
+    let header_height = root.get_height_rect(0, 0, width, SCREEN_HEIGHT, header);
+    let height = options.len() as i32 + header_height;
+
+    let mut window = Offscreen::new(width, height);
+
+    window.set_default_foreground(colors::WHITE);
+    window.print_rect_ex(0, 0, width, height, BackgroundFlag::None, TextAlignment::Left, header);
+
+    for (index, option_text) in options.iter().enumerate() {
+        let menu_letter = (b'a' + index as u8) as char;
+        let text = format!("({}) {}", menu_letter, option_text.as_ref());
+        window.print_ex(0, header_height + index as i32,  BackgroundFlag::None, TextAlignment::Left, text);
+    }
+
+    // "blit" to the center of root console
+    let x = SCREEN_WIDTH / 2 - width / 2;
+    let y = SCREEN_HEIGHT / 2 - height / 2;
+    blit(&mut window, (0, 0), (width, height), root, (x, y), 1.0, 0.7);
+    // and show data immediately
+    root.flush();
+    let key = root.wait_for_keypress(true);
+
+    // converts ASCII key to index (a is 0, b is 1, etc)
+    if key.printable.is_alphabetic() {
+        let index = key.printable.to_ascii_lowercase() as usize - 'a' as usize;
+        if index < options.len() {
+            Some(index)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Root) -> Option<usize> {
+    let options = if inventory.len() == 0 {
+        vec!["Inventory is empty".into()]
+    } else {
+        inventory.iter().map(|c| { c.borrow().name.clone() }).collect()
+    };
+
+    let inventory_index = menu(header, &options, INVENTORY_WIDTH, root);
+
+    if inventory.len() > 0 {
+        inventory_index
+    } else {
+        None
+    }
 }
 
 fn main() {
@@ -219,7 +286,6 @@ fn main() {
             Some((_, Event::Key(k))) => key = k,
             _ => key = Default::default(),
         }
-
 
 
         render_all(&mut root, &mut con, &mut panel, mouse, &mut object_manager, &mut map, &mut messages,
