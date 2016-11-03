@@ -149,6 +149,11 @@ fn handle_keys(key: Key, root: &mut Root, map: &Map, object_manager: &mut Object
         (Key { code: NumPad5, .. }, true) => { // wait for turn
             TookTurn 
         },
+        // Help screen
+        (Key { printable: '?', .. }, true) | (Key { printable: '/', .. }, true) => { 
+            show_help(root);
+            DidntTakeTurn
+        }
         // Inventory
         (Key { printable: 'g', .. }, true) => {
             let player_pos = object_manager.objects[PLAYER].borrow().pos();
@@ -261,6 +266,24 @@ fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Root) 
     } else {
         None
     }
+}
+
+fn show_help(root: &mut Root) {
+    let width = HELP_WIDTH;
+    let help_text = "Press arrows or numpad buttons to move. Use 'i' to open an inventory, 'g' to pick up items. '?' or '/' for this help. Press any key to close this window.";
+    let height = 8;
+
+    let mut window = Offscreen::new(width, height);
+
+    window.set_default_foreground(colors::WHITE);
+    window.print_rect_ex(0, 0, width, height, BackgroundFlag::None, TextAlignment::Left, help_text);
+
+    let x = SCREEN_WIDTH / 2 - width / 2;
+    let y = SCREEN_HEIGHT / 2 - height / 2;
+    blit(&mut window, (0, 0), (width, height), root, (x, y), 1.0, 0.7);
+
+    root.flush();
+    root.wait_for_keypress(true);
 }
 
 fn main() {
