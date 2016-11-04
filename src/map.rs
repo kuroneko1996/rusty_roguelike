@@ -4,6 +4,7 @@ use std::cmp;
 use std::cell::RefCell;
 
 use rand::Rng;
+use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
 use tcod::colors::{self};
 
 use config::*;
@@ -41,22 +42,32 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
-            let mut monster = if rand::random::<f32>() < 0.8 { // 80% probability
-                let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
-                orc.fighter = Some(Fighter{
-                    max_hp: 10, hp: 10, defense: 0, power: 3,
-                    on_death: DeathCallback::Monster,
-                });
-                orc.ai = Some(Ai::Basic);
-                orc
-            } else {
-                let mut troll = Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true);
-                troll.fighter = Some(Fighter{
-                    max_hp: 10, hp: 10, defense: 0, power: 3,
-                    on_death: DeathCallback::Monster,
-                });
-                troll.ai = Some(Ai::Basic);
-                troll
+            // monsters random table
+            let monster_chances = &mut [
+                Weighted {weight: 80, item: MonsterType::Orc},
+                Weighted {weight: 20, item: MonsterType::Troll},
+            ];
+            let monster_choice = WeightedChoice::new(monster_chances);
+
+            let mut monster = match monster_choice.ind_sample(&mut rand::thread_rng()) {
+                MonsterType::Orc => { 
+                    let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
+                    orc.fighter = Some(Fighter{
+                        max_hp: 10, hp: 10, defense: 0, power: 3,
+                        on_death: DeathCallback::Monster,
+                    });
+                    orc.ai = Some(Ai::Basic);
+                    orc
+                },
+                MonsterType::Troll => {
+                    let mut troll = Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true);
+                    troll.fighter = Some(Fighter{
+                        max_hp: 10, hp: 10, defense: 0, power: 3,
+                        on_death: DeathCallback::Monster,
+                    });
+                    troll.ai = Some(Ai::Basic);
+                    troll
+                },
             };
             monster.alive = true;
             objects.push(RefCell::new(monster));
@@ -70,23 +81,36 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
-            let dice = rand::random::<f32>();
-            let item = if dice < 0.7 {
-                let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
-                object.item = Some(Item::Heal);
-                object
-            } else if dice < 0.7 + 0.1 { // 10% chance
-                let mut object = Object::new(x, y, '#', "scroll of lightning bolt", colors::LIGHT_YELLOW, false);
-                object.item = Some(Item::Lightning);
-                object
-            } else if dice < 0.7 + 0.1 + 0.1 {
-                let mut object = Object::new(x, y, '#', "scroll of fireball", colors::LIGHT_YELLOW, false);
-                object.item = Some(Item::Fireball);
-                object                
-            } else {
-                let mut object = Object::new(x, y, '#', "scroll of confusion", colors::LIGHT_YELLOW, false);
-                object.item = Some(Item::Confuse);
-                object
+            // item random table
+            let item_chances = &mut [
+                Weighted {weight: 70, item: Item::Heal},
+                Weighted {weight: 10, item: Item::Lightning},
+                Weighted {weight: 10, item: Item::Fireball},
+                Weighted {weight: 10, item: Item::Confuse},
+            ];
+            let item_choice = WeightedChoice::new(item_chances);
+
+            let item = match item_choice.ind_sample(&mut rand::thread_rng()) {
+                Item::Heal => {
+                    let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
+                    object.item = Some(Item::Heal);
+                    object
+                },
+                Item::Lightning => {
+                    let mut object = Object::new(x, y, '#', "scroll of lightning bolt", colors::LIGHT_YELLOW, false);
+                    object.item = Some(Item::Lightning);
+                    object
+                },
+                Item::Fireball => {
+                    let mut object = Object::new(x, y, '#', "scroll of fireball", colors::LIGHT_YELLOW, false);
+                    object.item = Some(Item::Fireball);
+                    object
+                },
+                Item::Confuse => {
+                    let mut object = Object::new(x, y, '#', "scroll of confusion", colors::LIGHT_YELLOW, false);
+                    object.item = Some(Item::Confuse);
+                    object
+                }
             };
             objects.push(RefCell::new(item));
         }

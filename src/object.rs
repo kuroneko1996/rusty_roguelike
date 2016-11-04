@@ -131,6 +131,12 @@ pub enum Item {
     Fireball,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum MonsterType {
+    Orc,
+    Troll,
+}
+
 impl DeathCallback {
     fn callback(self, object: &mut Object, game: &mut Game) {
         let callback: fn(&mut Object, &mut Game) = match self {
