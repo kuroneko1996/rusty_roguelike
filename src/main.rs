@@ -111,6 +111,75 @@ fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut 
     }
 }
 
+fn initialise_fov(map: &Map, tcod: &mut Tcod) {
+    for x in 0..MAP_WIDTH {
+        for y in 0..MAP_HEIGHT {
+            tcod.fov.set(x, y, !map[x as usize][y as usize].block_sight, !map[x as usize][y as usize].blocked)
+        }
+    }
+}
+
+fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
+    let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
+    player.alive = true;
+    player.fighter = Some(Fighter{
+        max_hp: 30, hp: 30, defense: 2, power: 5,
+        on_death: DeathCallback::Player,
+    });
+
+    let mut objects = vec![RefCell::new(player)];
+
+    let mut game = Game {
+        map: make_map(&mut objects),
+        log: vec![], // messages here
+        inventory: vec![],
+    };
+
+    let object_manager = ObjectsManager { objects: objects };
+
+    initialise_fov(&game.map, tcod);
+
+    // greeting
+    game.log.add("Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
+
+    (object_manager, game)
+}
+
+fn play_game(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) {
+    let mut previous_player_position = (-1, -1);
+    let mut key = Default::default();
+
+    while !tcod.root.window_closed() {
+        let (player_x, player_y) = object_manager.objects[PLAYER].borrow().pos();
+        let fov_recompute = previous_player_position != (player_x, player_y);
+
+        match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
+            Some((_, Event::Mouse(m))) => tcod.mouse = m,
+            Some((_, Event::Key(k))) => key = k,
+            _ => key = Default::default(),
+        }
+
+        render_all(tcod, object_manager, game, fov_recompute);
+
+        tcod.root.flush();
+      
+        object_manager.draw_clear(&mut tcod.con);
+
+        previous_player_position = (player_x, player_y);
+
+        // player's turn
+        let player_action = handle_keys(key, tcod, game, object_manager);
+        if player_action == PlayerAction::Exit {
+            break
+        }
+
+        // monsters turn
+        if object_manager.objects[PLAYER].borrow().alive && player_action == PlayerAction::TookTurn {
+            object_manager.ai_turn(game, &tcod.fov);
+        }
+    }
+}
+
 fn main() {
     let root = Root::initializer()
         .font("arial10x10.png", FontLayout::Tcod)
@@ -128,64 +197,6 @@ fn main() {
         mouse: Default::default(),
     };
 
-    let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
-    player.alive = true;
-    player.fighter = Some(Fighter{
-        max_hp: 30, hp: 30, defense: 2, power: 5,
-        on_death: DeathCallback::Player,
-    });
-
-    let mut objects = vec![RefCell::new(player)];
-
-    let mut game = Game {
-        map: make_map(&mut objects),
-        log: vec![], // messages here
-        inventory: vec![],
-    };
-
-    let mut object_manager = ObjectsManager { objects: objects };
-
-    // greeting
-    game.log.add("Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
-
-    // FOV
-    for x in 0..MAP_WIDTH {
-        for y in 0..MAP_HEIGHT {
-            tcod.fov.set(x, y, !game.map[x as usize][y as usize].block_sight, !game.map[x as usize][y as usize].blocked)
-        }
-    }
-    let mut previous_player_position = (-1, -1);
-
-    let mut key = Default::default();
-
-    while !tcod.root.window_closed() {
-        let (player_x, player_y) = object_manager.objects[PLAYER].borrow().pos();
-        let fov_recompute = previous_player_position != (player_x, player_y);
-
-        match input::check_for_event(input::MOUSE | input::KEY_PRESS) {
-            Some((_, Event::Mouse(m))) => tcod.mouse = m,
-            Some((_, Event::Key(k))) => key = k,
-            _ => key = Default::default(),
-        }
-
-
-        render_all(&mut tcod, &mut object_manager, &mut game, fov_recompute);
-
-        tcod.root.flush();
-      
-        object_manager.draw_clear(&mut tcod.con);
-
-        previous_player_position = (player_x, player_y);
-
-        // player's turn
-        let player_action = handle_keys(key, &mut tcod, &mut game, &mut object_manager);
-        if player_action == PlayerAction::Exit {
-            break
-        }
-
-        // monsters turn
-        if object_manager.objects[PLAYER].borrow().alive && player_action == PlayerAction::TookTurn {
-            object_manager.ai_turn(&mut game, &tcod.fov);
-        }
-    }
+   let (mut object_manager, mut game) = new_game(&mut tcod);
+   play_game(&mut object_manager, &mut game, &mut tcod);
 }
