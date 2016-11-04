@@ -374,7 +374,10 @@ fn cast_lightning(_inventory_id: usize, object_manager: &mut ObjectsManager, gam
 }
 
 fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
-    let monster_id = closest_monster(CONFUSE_RANGE, object_manager, tcod);
+    message(&mut game.log, "Left-click an enemy to confuse it, or right-click to cancel.",
+        colors::LIGHT_CYAN);
+    let monster_id = target_monster(tcod, object_manager, game, Some(CONFUSE_RANGE as f32));
+
     if let Some(monster_id) = monster_id {
         let mut monster = object_manager.objects[monster_id].borrow_mut();
         // replace old ai

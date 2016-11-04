@@ -61,6 +61,22 @@ pub fn target_tile(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &
     }
 }
 
+pub fn target_monster(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut Game, max_range: Option<f32>) -> Option<usize> {
+    loop {
+        match target_tile(tcod, object_manager, game, max_range) {
+            Some((x, y)) => {
+                for (id, cell) in object_manager.objects.iter().enumerate() {
+                    let obj = cell.borrow();
+                    if obj.pos() == (x, y) && obj.fighter.is_some() && id != PLAYER {
+                        return Some(id)
+                    }
+                }
+            },
+            None => return None,
+        }
+    }
+}
+
 pub fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut Game,
               fov_recompute: bool) 
 {
