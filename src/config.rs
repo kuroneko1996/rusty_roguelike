@@ -47,3 +47,5 @@ pub const HEAL_AMOUNT: i32 = 4;
 // Spells
 pub const LIGHTNING_RANGE: i32 = 5;
 pub const LIGHTNING_DAMAGE: i32 = 20;
+pub const CONFUSE_RANGE: i32 = 8;
+pub const CONFUSE_NUM_TURNS: i32 = 10;

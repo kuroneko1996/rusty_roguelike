@@ -1,9 +1,12 @@
+extern crate rand;
+
 use tcod::console::*;
 use tcod::colors::{self, Color};
 use tcod::map::{Map as FovMap};
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::ops::Deref;
+use rand::Rng;
 
 use config::*;
 use map::*;
@@ -120,6 +123,7 @@ pub struct Fighter {
 pub enum Item {
     Heal,
     Lightning,
+    Confuse,
 }
 
 impl DeathCallback {
@@ -132,8 +136,11 @@ impl DeathCallback {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Ai;
+#[derive(Clone, Debug, PartialEq)]
+pub enum Ai {
+    Basic,
+    Confused{previous_ai: Box<Ai>, num_turns: i32},
+}
 
 pub struct ObjectsManager {
     pub objects: Vec<RefCell<Object>>,
@@ -206,6 +213,25 @@ impl ObjectsManager {
     }
 
     pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
+        let ai_option = self.objects[monster_id].borrow_mut().ai.take();
+        if let Some(ai) = ai_option {
+            let new_ai = match ai {
+                Ai::Basic => self.ai_basic(monster_id, map, fov_map, messages),
+                Ai::Confused{previous_ai, num_turns} => self.ai_confused(monster_id, map, messages, previous_ai, num_turns),
+            };
+            self.objects[monster_id].borrow_mut().ai = Some(new_ai);
+        }
+    }
+
+    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
+        for id in 0..self.objects.len() {
+            if self.objects[id].borrow().ai.is_some() {
+                self.ai_take_turn(id, &map, &fov_map, messages);
+            }
+        }
+    }
+
+    fn ai_basic(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) -> Ai {
         let (monster_x, monster_y) = self.objects[monster_id].borrow().pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
@@ -219,13 +245,18 @@ impl ObjectsManager {
                 monster.attack(player.deref_mut(), messages);
             }
         }
+        Ai::Basic
     }
 
-    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
-        for id in 0..self.objects.len() {
-            if self.objects[id].borrow().ai.is_some() {
-                self.ai_take_turn(id, &map, &fov_map, messages);
-            }
+    fn ai_confused(&mut self, monster_id: usize, map: &Map, messages: &mut Messages,
+        previous_ai: Box<Ai>, num_turns: i32) -> Ai 
+    {
+        if num_turns >= 0 {
+            self.move_by(monster_id, rand::thread_rng().gen_range(-1, 2), rand::thread_rng().gen_range(-1, 2), map);
+            Ai::Confused{previous_ai: previous_ai, num_turns: num_turns - 1}
+        } else {
+            message(messages, format!("The {} is no longer confused!", self.objects[monster_id].borrow().name), colors::RED);
+            *previous_ai
         }
     }
 }
@@ -270,6 +301,7 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
     let on_use = match item {
         Some(Item::Heal) => cast_heal,
         Some(Item::Lightning) => cast_lightning,
+        Some(Item::Confuse) => cast_confuse,
         None => {
             message(&mut game.log, format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
             return
@@ -328,6 +360,26 @@ fn cast_lightning(_inventory_id: usize, object_manager: &mut ObjectsManager, gam
                                 monster.name, LIGHTNING_DAMAGE),
                 colors::LIGHT_BLUE);
         monster.take_damage(LIGHTNING_DAMAGE, &mut game.log);
+        UseResult::UsedUp
+    } else {
+        message(&mut game.log, "No enemy is close enough to strike", colors::RED);
+        UseResult::Cancelled
+    }
+}
+
+fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
+    let monster_id = closest_monster(CONFUSE_RANGE, object_manager, tcod);
+    if let Some(monster_id) = monster_id {
+        let mut monster = object_manager.objects[monster_id].borrow_mut();
+        // replace old api
+        let old_ai = monster.ai.take().unwrap_or(Ai::Basic);
+        monster.ai = Some(Ai::Confused {
+            previous_ai: Box::new(old_ai),
+            num_turns: CONFUSE_NUM_TURNS,
+        });
+        message(&mut game.log, format!("The eyes of {} look vacant, as he starts to stumble around!",
+                                            monster.name),
+                colors::LIGHT_GREEN);
         UseResult::UsedUp
     } else {
         message(&mut game.log, "No enemy is close enough to strike", colors::RED);

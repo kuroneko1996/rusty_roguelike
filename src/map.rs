@@ -47,7 +47,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                     max_hp: 10, hp: 10, defense: 0, power: 3,
                     on_death: DeathCallback::Monster,
                 });
-                orc.ai = Some(Ai);
+                orc.ai = Some(Ai::Basic);
                 orc
             } else {
                 let mut troll = Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true);
@@ -55,7 +55,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                     max_hp: 10, hp: 10, defense: 0, power: 3,
                     on_death: DeathCallback::Monster,
                 });
-                troll.ai = Some(Ai);
+                troll.ai = Some(Ai::Basic);
                 troll
             };
             monster.alive = true;
@@ -75,9 +75,13 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                 let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
                 object.item = Some(Item::Heal);
                 object
-            } else {
+            } else if dice < 0.7 + 0.15 { // 15% chance
                 let mut object = Object::new(x, y, '#', "scroll of lightning bolt", colors::LIGHT_YELLOW, false);
                 object.item = Some(Item::Lightning);
+                object
+            } else {
+                let mut object = Object::new(x, y, '#', "scroll of confusion", colors::LIGHT_YELLOW, false);
+                object.item = Some(Item::Confuse);
                 object
             };
             objects.push(RefCell::new(item));
