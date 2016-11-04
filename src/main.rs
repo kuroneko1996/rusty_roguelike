@@ -117,6 +117,7 @@ fn initialise_fov(map: &Map, tcod: &mut Tcod) {
             tcod.fov.set(x, y, !map[x as usize][y as usize].block_sight, !map[x as usize][y as usize].blocked)
         }
     }
+    tcod.con.clear();  // unexplored areas start black (which is the default background color)
 }
 
 fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
@@ -180,6 +181,34 @@ fn play_game(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tc
     }
 }
 
+fn main_menu(tcod: &mut Tcod) {
+    while !tcod.root.window_closed() {
+        let choices = &["Play a new game", "Continue last game", "Quit"];
+
+        tcod.root.set_default_foreground(colors::LIGHT_YELLOW);
+        tcod.root.print_ex(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 4,
+                   BackgroundFlag::None, TextAlignment::Center,
+                   "RUSTY ROGUELIKE");
+        tcod.root.print_ex(SCREEN_WIDTH/2, SCREEN_HEIGHT - 2,
+                   BackgroundFlag::None, TextAlignment::Center,
+                   "By Me");
+
+        let choice = menu("", choices, 24, &mut tcod.root);
+
+        match choice {
+            Some(0) => { // new game
+                let (mut object_manager, mut game) = new_game(tcod);
+                play_game(&mut object_manager, &mut game, tcod);
+                tcod.root.clear();
+            },
+            Some(2) => { // quit
+                break;
+            },
+            _ => {},
+        }
+    }
+}
+
 fn main() {
     let root = Root::initializer()
         .font("arial10x10.png", FontLayout::Tcod)
@@ -197,6 +226,5 @@ fn main() {
         mouse: Default::default(),
     };
 
-   let (mut object_manager, mut game) = new_game(&mut tcod);
-   play_game(&mut object_manager, &mut game, &mut tcod);
+   main_menu(&mut tcod);
 }
