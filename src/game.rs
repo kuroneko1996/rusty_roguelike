@@ -9,6 +9,7 @@ use map::Map;
 use messages::Messages;
 use object::{Object, ObjectsManager};
 
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct Game {
     pub map: Map,
     pub log: Messages,
@@ -222,6 +223,23 @@ pub fn menu<T: AsRef<str>>(header: &str, options: &[T], width: i32, root: &mut R
     } else {
         None
     }
+}
+
+pub fn msgbox(text: &str, width: i32, root: &mut Root) {
+    let options: &[&str] = &[];
+    menu(text, options, width, root);
+}
+
+// no waiting
+pub fn msg(text: &str, width: i32, root: &mut Root) {
+    let height = 1;
+    let mut window = Offscreen::new(width, height);
+    window.set_default_foreground(colors::WHITE);
+    window.print_rect_ex(0, 0, width, height, BackgroundFlag::None, TextAlignment::Left, text);
+    let x = SCREEN_WIDTH / 2 - width / 2;
+    let y = SCREEN_HEIGHT / 2 - height / 2;
+    blit(&mut window, (0, 0), (width, height), root, (x, y), 1.0, 0.7);
+    root.flush();
 }
 
 pub fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Root) -> Option<usize> {

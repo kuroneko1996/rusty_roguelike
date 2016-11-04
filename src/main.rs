@@ -1,11 +1,17 @@
 extern crate tcod;
 extern crate rand;
+extern crate rustc_serialize;
 
 use std::cell::RefCell;
 use tcod::console::*;
 use tcod::colors::{self};
 use tcod::map::{Map as FovMap};
 use tcod::input::{self, Event, Key};
+
+use std::io::{Read, Write};
+use std::fs::File;
+use std::error::Error;
+use rustc_serialize::json;
 
 mod config;
 mod tile;
@@ -171,6 +177,15 @@ fn play_game(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tc
         // player's turn
         let player_action = handle_keys(key, tcod, game, object_manager);
         if player_action == PlayerAction::Exit {
+            msg("\nSaving game...\n", 24, &mut tcod.root);
+            match save_game(object_manager, game) {
+                Ok(_) => {
+                    break
+                },
+                Err(_e) => {
+                    msgbox("\nError saving file.\n", 24, &mut tcod.root);
+                },
+            }
             break
         }
 
@@ -191,7 +206,7 @@ fn main_menu(tcod: &mut Tcod) {
                    "RUSTY ROGUELIKE");
         tcod.root.print_ex(SCREEN_WIDTH/2, SCREEN_HEIGHT - 2,
                    BackgroundFlag::None, TextAlignment::Center,
-                   "By Me");
+                   "By name");
 
         let choice = menu("", choices, 24, &mut tcod.root);
 
@@ -201,12 +216,47 @@ fn main_menu(tcod: &mut Tcod) {
                 play_game(&mut object_manager, &mut game, tcod);
                 tcod.root.clear();
             },
+            Some(1) => { // load game
+                match load_game() {
+                    Ok((objects, mut game)) => {
+                        let mut cells: Vec<RefCell<Object>> = vec![];
+                        for object in objects {
+                            cells.push(RefCell::new(object));
+                        }
+
+                        let mut object_manager = ObjectsManager {objects: cells};
+                        initialise_fov(&game.map, tcod);
+                        play_game(&mut object_manager, &mut game, tcod);
+                        tcod.root.clear();
+                    },
+                    Err(_e) => {
+                        msgbox("\nNo saved game to load.\n", 24, &mut tcod.root);
+                        tcod.root.clear();
+                        continue;
+                    }
+                }
+            },
             Some(2) => { // quit
                 break;
             },
             _ => {},
         }
     }
+}
+
+fn save_game(object_manager: &ObjectsManager, game: &Game) -> Result<(), Box<Error>> {
+    let save_data = try! { json::encode(&(&object_manager.objects, game)) };
+    let mut file = try! { File::create("savegame") };
+    try! { file.write_all(save_data.as_bytes()) };
+    Ok(())
+}
+
+fn load_game() -> Result<(Vec<Object>, Game), Box<Error>> {
+    let mut json_save_state = String::new();
+    let mut file = try! { File::open("savegame") };
+    try! { file.read_to_string(&mut json_save_state) };
+    let result = try! { json::decode::<(Vec<Object>, Game)>(&json_save_state) };
+    Ok(result)
 }
 
 fn main() {

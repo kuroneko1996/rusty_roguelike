@@ -13,7 +13,7 @@ use map::*;
 use messages::*;
 use game::*;
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct Object {
     pub x: i32,
     pub y: i32,
@@ -108,13 +108,13 @@ impl Object {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum DeathCallback {
     Player,
     Monster,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Fighter {
     pub max_hp: i32,
     pub hp: i32,
@@ -123,7 +123,7 @@ pub struct Fighter {
     pub on_death: DeathCallback,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Item {
     Heal,
     Lightning,
@@ -141,7 +141,7 @@ impl DeathCallback {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Ai {
     Basic,
     Confused{previous_ai: Box<Ai>, num_turns: i32},
