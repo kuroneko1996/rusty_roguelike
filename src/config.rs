@@ -43,3 +43,7 @@ pub const MAX_INVENTORY_SIZE: i32 = 26;
 pub const PLAYER: usize = 0;
 
 pub const HEAL_AMOUNT: i32 = 4;
+
+// Spells
+pub const LIGHTNING_RANGE: i32 = 5;
+pub const LIGHTNING_DAMAGE: i32 = 20;

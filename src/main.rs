@@ -21,21 +21,6 @@ use object::*;
 use messages::*;
 use game::*;
 
-struct Tcod {
-    root: Root,
-    con: Offscreen,
-    panel: Offscreen,
-    fov: FovMap,
-    mouse: Mouse,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum PlayerAction {
-    TookTurn,
-    DidntTakeTurn,
-    Exit,
-}
-
 fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut Game,
               fov_recompute: bool) 
 {
@@ -109,7 +94,7 @@ fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut G
 fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut ObjectsManager) -> PlayerAction 
 {
     use tcod::input::KeyCode::*;
-    use PlayerAction::*;
+    use game::PlayerAction::*;
 
     let is_alive = object_manager.objects[PLAYER].borrow().alive;
 
@@ -188,7 +173,7 @@ fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut 
                 &mut tcod.root);
 
             if let Some(inventory_index) = inventory_index {
-                use_item(inventory_index, object_manager, game);
+                use_item(inventory_index, object_manager, game, tcod);
             }
             DidntTakeTurn
         },

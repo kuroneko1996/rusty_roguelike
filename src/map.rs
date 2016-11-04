@@ -70,9 +70,17 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
-            let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
-            object.item = Some(Item::Heal);
-            objects.push(RefCell::new(object));
+            let dice = rand::random::<f32>();
+            let item = if dice < 0.7 {
+                let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
+                object.item = Some(Item::Heal);
+                object
+            } else {
+                let mut object = Object::new(x, y, '#', "scroll of lightning bolt", colors::LIGHT_YELLOW, false);
+                object.item = Some(Item::Lightning);
+                object
+            };
+            objects.push(RefCell::new(item));
         }
     }
 }
@@ -103,7 +111,6 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
 
         if !failed {
             create_room(new_room, &mut map);
-            place_objects(new_room, &map, objects);
             let (new_x, new_y) = new_room.center();
 
             if rooms.is_empty() { // first room
@@ -122,6 +129,7 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
                 }
             }
 
+            place_objects(new_room, &map, objects);
             rooms.push(new_room);
         }
     }

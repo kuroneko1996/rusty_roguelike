@@ -8,7 +8,7 @@ use std::ops::Deref;
 use config::*;
 use map::*;
 use messages::*;
-use game::Game;
+use game::*;
 
 #[derive(Debug)]
 pub struct Object {
@@ -119,6 +119,7 @@ pub struct Fighter {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
     Heal,
+    Lightning,
 }
 
 impl DeathCallback {
@@ -262,19 +263,20 @@ pub enum UseResult {
     Cancelled,
 }
 
-pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) 
+pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) 
 {
     let item = game.inventory[inventory_id].borrow().item;
     
     let on_use = match item {
         Some(Item::Heal) => cast_heal,
+        Some(Item::Lightning) => cast_lightning,
         None => {
             message(&mut game.log, format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
             return
         },
     };
 
-    match on_use(inventory_id, object_manager, game) {
+    match on_use(inventory_id, object_manager, game, tcod) {
         UseResult::UsedUp => {
             // destroy after use
             game.inventory.remove(inventory_id);
@@ -297,7 +299,7 @@ pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game:
     object_manager.objects.push(item_cell);
 }
 
-fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) -> UseResult {
+fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
     let mut is_fighter = false;
     if let Some(fighter) = object_manager.objects[PLAYER].borrow().fighter {
         if fighter.hp == fighter.max_hp {
@@ -314,4 +316,41 @@ fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &m
     }
 
     UseResult::Cancelled
+}
+
+fn cast_lightning(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
+    // find the closest enemy
+    let monster_id = closest_monster(LIGHTNING_RANGE, object_manager, tcod);
+    if let Some(monster_id) = monster_id {
+        let mut monster = object_manager.objects[monster_id].borrow_mut();
+        message(&mut game.log, format!("A lightning bolt strikes the {} with a loud thunder! \
+                                        The damage is {} hit points.", 
+                                monster.name, LIGHTNING_DAMAGE),
+                colors::LIGHT_BLUE);
+        monster.take_damage(LIGHTNING_DAMAGE, &mut game.log);
+        UseResult::UsedUp
+    } else {
+        message(&mut game.log, "No enemy is close enough to strike", colors::RED);
+        UseResult::Cancelled
+    }
+}
+
+fn closest_monster(max_range: i32, object_manager: &mut ObjectsManager, tcod: &mut Tcod) -> Option<usize> {
+    let mut closest_enemy = None;
+    let mut closest_dist = (max_range + 1) as f32; // starts with slighty more than max range
+
+    for (id, cell) in object_manager.objects.iter().enumerate() {
+        let object = cell.borrow();
+
+        if (id != PLAYER) && object.fighter.is_some() && object.ai.is_some() 
+            && tcod.fov.is_in_fov(object.x, object.y) 
+        {
+            let dist = object_manager.objects[PLAYER].borrow().distance_to(object.deref());
+            if dist < closest_dist {
+                closest_enemy = Some(id);
+                closest_dist = dist;
+            }
+        }
+    }
+    closest_enemy
 }
