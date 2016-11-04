@@ -58,6 +58,10 @@ impl Object {
         ((dx.pow(2) + dy.pow(2)) as f32).sqrt()
     }
 
+    pub fn distance(&self, x: i32, y: i32) -> f32 {
+        (((x - self.x).pow(2) + (y - self.y).pow(2)) as f32).sqrt()
+    }
+
     pub fn draw(&self, con: &mut Console) {
         con.set_default_foreground(self.color);
         con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
@@ -124,6 +128,7 @@ pub enum Item {
     Heal,
     Lightning,
     Confuse,
+    Fireball,
 }
 
 impl DeathCallback {
@@ -302,6 +307,7 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
         Some(Item::Heal) => cast_heal,
         Some(Item::Lightning) => cast_lightning,
         Some(Item::Confuse) => cast_confuse,
+        Some(Item::Fireball) => cast_fireball,
         None => {
             message(&mut game.log, format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
             return
@@ -371,7 +377,7 @@ fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game:
     let monster_id = closest_monster(CONFUSE_RANGE, object_manager, tcod);
     if let Some(monster_id) = monster_id {
         let mut monster = object_manager.objects[monster_id].borrow_mut();
-        // replace old api
+        // replace old ai
         let old_ai = monster.ai.take().unwrap_or(Ai::Basic);
         monster.ai = Some(Ai::Confused {
             previous_ai: Box::new(old_ai),
@@ -385,6 +391,31 @@ fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game:
         message(&mut game.log, "No enemy is close enough to strike", colors::RED);
         UseResult::Cancelled
     }
+}
+
+fn cast_fireball(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
+    message(&mut game.log,
+            "Left-click a target tile for the fireball, or right-click to cancel.",
+            colors::LIGHT_CYAN);
+    let (x, y) = match target_tile(tcod, object_manager, game, None) {
+        Some(tile_pos) => tile_pos,
+        None => return UseResult::Cancelled,
+    };
+    message(&mut game.log,
+            format!("The fireball explodes, burning everything within {} tiles!", FIREBALL_RADIUS),
+            colors::ORANGE);
+
+    for cell in &object_manager.objects {
+        let mut obj = cell.borrow_mut();
+        if obj.distance(x, y) <= FIREBALL_RADIUS as f32 && obj.fighter.is_some() {
+            message(&mut game.log,
+                    format!("The {} gets burned for {} hit points.", obj.name, FIREBALL_DAMAGE),
+                    colors::ORANGE);
+            obj.take_damage(FIREBALL_DAMAGE, &mut game.log);
+        }
+    }
+
+    UseResult::UsedUp
 }
 
 fn closest_monster(max_range: i32, object_manager: &mut ObjectsManager, tcod: &mut Tcod) -> Option<usize> {

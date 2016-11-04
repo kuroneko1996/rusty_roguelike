@@ -75,10 +75,14 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                 let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
                 object.item = Some(Item::Heal);
                 object
-            } else if dice < 0.7 + 0.15 { // 15% chance
+            } else if dice < 0.7 + 0.1 { // 10% chance
                 let mut object = Object::new(x, y, '#', "scroll of lightning bolt", colors::LIGHT_YELLOW, false);
                 object.item = Some(Item::Lightning);
                 object
+            } else if dice < 0.7 + 0.1 + 0.1 {
+                let mut object = Object::new(x, y, '#', "scroll of fireball", colors::LIGHT_YELLOW, false);
+                object.item = Some(Item::Fireball);
+                object                
             } else {
                 let mut object = Object::new(x, y, '#', "scroll of confusion", colors::LIGHT_YELLOW, false);
                 object.item = Some(Item::Confuse);
