@@ -71,7 +71,7 @@ impl Object {
         con.put_char(self.x, self.y, ' ', BackgroundFlag::None);
     }
 
-    pub fn take_damage(&mut self, damage: i32, messages: &mut Messages) {
+    pub fn take_damage(&mut self, damage: i32, game: &mut Game) {
         if let Some(fighter) = self.fighter.as_mut() {
             if damage > 0 {
                 fighter.hp -= damage;
@@ -81,19 +81,19 @@ impl Object {
         if let Some(fighter) = self.fighter {
             if fighter.hp <= 0 {
                 self.alive = false;
-                fighter.on_death.callback(self, messages);
+                fighter.on_death.callback(self, game);
             }
         }
     }
 
-    pub fn attack(&mut self, target: &mut Object, messages: &mut Messages) {
+    pub fn attack(&mut self, target: &mut Object, game: &mut Game) {
         let damage = self.fighter.map_or(0, |f| f.power) - target.fighter.map_or(0, |f| f.defense);
         if damage > 0 {
-            message(messages, format!("{} attacks {} for {} hit points.", self.name, target.name, damage),
+            game.log.add(format!("{} attacks {} for {} hit points.", self.name, target.name, damage),
                     colors::WHITE);
-            target.take_damage(damage, messages);
+            target.take_damage(damage, game);
         } else {
-            message(messages, format!("{} attacks {} but it has no effect!", self.name, target.name),
+            game.log.add(format!("{} attacks {} but it has no effect!", self.name, target.name),
                     colors::WHITE);
         }
     }
@@ -132,12 +132,12 @@ pub enum Item {
 }
 
 impl DeathCallback {
-    fn callback(self, object: &mut Object, messages: &mut Messages) {
-        let callback: fn(&mut Object, &mut Messages) = match self {
+    fn callback(self, object: &mut Object, game: &mut Game) {
+        let callback: fn(&mut Object, &mut Game) = match self {
             DeathCallback::Player => player_death,
             DeathCallback::Monster => monster_death,
         };
-        callback(object, messages);
+        callback(object, game);
     }
 }
 
@@ -209,7 +209,7 @@ impl ObjectsManager {
         match target_id {
             Some(target_id) => {
                 let (mut player, mut target) = (self.objects[PLAYER].borrow_mut(), self.objects[target_id].borrow_mut());
-                player.attack(target.deref_mut(), &mut game.log);
+                player.attack(target.deref_mut(), game);
             },
             None => {
                 self.move_by(PLAYER, dx, dy, &game.map);
@@ -217,26 +217,26 @@ impl ObjectsManager {
         }
     }
 
-    pub fn ai_take_turn(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
+    pub fn ai_take_turn(&mut self, monster_id: usize, game: &mut Game, fov_map: &FovMap) {
         let ai_option = self.objects[monster_id].borrow_mut().ai.take();
         if let Some(ai) = ai_option {
             let new_ai = match ai {
-                Ai::Basic => self.ai_basic(monster_id, map, fov_map, messages),
-                Ai::Confused{previous_ai, num_turns} => self.ai_confused(monster_id, map, messages, previous_ai, num_turns),
+                Ai::Basic => self.ai_basic(monster_id, game, fov_map),
+                Ai::Confused{previous_ai, num_turns} => self.ai_confused(monster_id, game, previous_ai, num_turns),
             };
             self.objects[monster_id].borrow_mut().ai = Some(new_ai);
         }
     }
 
-    pub fn ai_turn(&mut self, map: &Map, fov_map: &FovMap, messages: &mut Messages) {
+    pub fn ai_turn(&mut self, game: &mut Game, fov_map: &FovMap) {
         for id in 0..self.objects.len() {
             if self.objects[id].borrow().ai.is_some() {
-                self.ai_take_turn(id, &map, &fov_map, messages);
+                self.ai_take_turn(id, game, &fov_map);
             }
         }
     }
 
-    fn ai_basic(&mut self, monster_id: usize, map: &Map, fov_map: &FovMap, messages: &mut Messages) -> Ai {
+    fn ai_basic(&mut self, monster_id: usize, game: &mut Game, fov_map: &FovMap) -> Ai {
         let (monster_x, monster_y) = self.objects[monster_id].borrow().pos();
 
         if fov_map.is_in_fov(monster_x, monster_y) {
@@ -244,38 +244,37 @@ impl ObjectsManager {
             if distance >= 2.0 {
                 // move towards player if far away
                 let (player_x, player_y) = self.objects[PLAYER].borrow().pos();
-                self.move_towards(monster_id, player_x, player_y, map);
+                self.move_towards(monster_id, player_x, player_y, &game.map);
             } else {
                 let (mut player, mut monster) = (self.objects[PLAYER].borrow_mut(), self.objects[monster_id].borrow_mut());
-                monster.attack(player.deref_mut(), messages);
+                monster.attack(player.deref_mut(), game);
             }
         }
         Ai::Basic
     }
 
-    fn ai_confused(&mut self, monster_id: usize, map: &Map, messages: &mut Messages,
-        previous_ai: Box<Ai>, num_turns: i32) -> Ai 
+    fn ai_confused(&mut self, monster_id: usize, game: &mut Game, previous_ai: Box<Ai>, num_turns: i32) -> Ai 
     {
         if num_turns >= 0 {
-            self.move_by(monster_id, rand::thread_rng().gen_range(-1, 2), rand::thread_rng().gen_range(-1, 2), map);
+            self.move_by(monster_id, rand::thread_rng().gen_range(-1, 2), rand::thread_rng().gen_range(-1, 2), &game.map);
             Ai::Confused{previous_ai: previous_ai, num_turns: num_turns - 1}
         } else {
-            message(messages, format!("The {} is no longer confused!", self.objects[monster_id].borrow().name), colors::RED);
+            game.log.add(format!("The {} is no longer confused!", self.objects[monster_id].borrow().name), colors::RED);
             *previous_ai
         }
     }
 }
 
-fn player_death(player: &mut Object, messages: &mut Messages) {
-    message(messages, "YOU DIED", colors::RED);
+fn player_death(player: &mut Object, game: &mut Game) {
+    game.log.add("YOU DIED", colors::RED);
 
     player.char = '%';
     player.color = colors::DARK_RED;
 }
 
-fn monster_death(monster: &mut Object, messages: &mut Messages) {
+fn monster_death(monster: &mut Object, game: &mut Game) {
     // transform to a corpse
-    message(messages, format!("{} is dead", monster.name), colors::ORANGE);
+    game.log.add(format!("{} is dead", monster.name), colors::ORANGE);
     monster.char = '%';
     monster.color = colors::DARK_RED;
     monster.blocks = false;
@@ -286,10 +285,10 @@ fn monster_death(monster: &mut Object, messages: &mut Messages) {
 
 pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) {
     if game.inventory.len() >= MAX_INVENTORY_SIZE as usize {
-        message(&mut game.log, format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
+        game.log.add(format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
     } else {
         let item = object_manager.objects.swap_remove(object_id);
-        message(&mut game.log, format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
+        game.log.add(format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
         game.inventory.push(item);
     }
 }
@@ -309,7 +308,7 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
         Some(Item::Confuse) => cast_confuse,
         Some(Item::Fireball) => cast_fireball,
         None => {
-            message(&mut game.log, format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
+            game.log.add(format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
             return
         },
     };
@@ -320,7 +319,7 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
             game.inventory.remove(inventory_id);
         },
         UseResult::Cancelled => {
-            message(&mut game.log, "Cancelled", colors::WHITE);
+            game.log.add("Cancelled", colors::WHITE);
         }
     }
 }
@@ -332,7 +331,7 @@ pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game:
         let mut item = item_cell.borrow_mut();
         let player = object_manager.objects[PLAYER].borrow();
         item.set_pos(player.x, player.y);
-        message(&mut game.log, format!("You dropped a {}.", item.name), colors::YELLOW);
+        game.log.add(format!("You dropped a {}.", item.name), colors::YELLOW);
     }
     object_manager.objects.push(item_cell);
 }
@@ -341,14 +340,14 @@ fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &m
     let mut is_fighter = false;
     if let Some(fighter) = object_manager.objects[PLAYER].borrow().fighter {
         if fighter.hp == fighter.max_hp {
-            message(&mut game.log, "You are already at full health.", colors::RED);
+            game.log.add("You are already at full health.", colors::RED);
             return UseResult::Cancelled;
         }
         is_fighter = true;
     }
 
     if is_fighter {
-        message(&mut game.log, "Your wounds start to feel better!", colors::LIGHT_VIOLET);
+        game.log.add("Your wounds start to feel better!", colors::LIGHT_VIOLET);
         object_manager.objects[PLAYER].borrow_mut().heal(HEAL_AMOUNT);
         return UseResult::UsedUp;
     }
@@ -361,20 +360,20 @@ fn cast_lightning(_inventory_id: usize, object_manager: &mut ObjectsManager, gam
     let monster_id = closest_monster(LIGHTNING_RANGE, object_manager, tcod);
     if let Some(monster_id) = monster_id {
         let mut monster = object_manager.objects[monster_id].borrow_mut();
-        message(&mut game.log, format!("A lightning bolt strikes the {} with a loud thunder! \
+        game.log.add(format!("A lightning bolt strikes the {} with a loud thunder! \
                                         The damage is {} hit points.", 
                                 monster.name, LIGHTNING_DAMAGE),
                 colors::LIGHT_BLUE);
-        monster.take_damage(LIGHTNING_DAMAGE, &mut game.log);
+        monster.take_damage(LIGHTNING_DAMAGE, game);
         UseResult::UsedUp
     } else {
-        message(&mut game.log, "No enemy is close enough to strike", colors::RED);
+        game.log.add("No enemy is close enough to strike", colors::RED);
         UseResult::Cancelled
     }
 }
 
 fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
-    message(&mut game.log, "Left-click an enemy to confuse it, or right-click to cancel.",
+    game.log.add("Left-click an enemy to confuse it, or right-click to cancel.",
         colors::LIGHT_CYAN);
     let monster_id = target_monster(tcod, object_manager, game, Some(CONFUSE_RANGE as f32));
 
@@ -386,35 +385,32 @@ fn cast_confuse(_inventory_id: usize, object_manager: &mut ObjectsManager, game:
             previous_ai: Box::new(old_ai),
             num_turns: CONFUSE_NUM_TURNS,
         });
-        message(&mut game.log, format!("The eyes of {} look vacant, as he starts to stumble around!",
+        game.log.add(format!("The eyes of {} look vacant, as he starts to stumble around!",
                                             monster.name),
                 colors::LIGHT_GREEN);
         UseResult::UsedUp
     } else {
-        message(&mut game.log, "No enemy is close enough to strike", colors::RED);
+        game.log.add("No enemy is close enough to strike", colors::RED);
         UseResult::Cancelled
     }
 }
 
 fn cast_fireball(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
-    message(&mut game.log,
-            "Left-click a target tile for the fireball, or right-click to cancel.",
+    game.log.add("Left-click a target tile for the fireball, or right-click to cancel.",
             colors::LIGHT_CYAN);
     let (x, y) = match target_tile(tcod, object_manager, game, None) {
         Some(tile_pos) => tile_pos,
         None => return UseResult::Cancelled,
     };
-    message(&mut game.log,
-            format!("The fireball explodes, burning everything within {} tiles!", FIREBALL_RADIUS),
+    game.log.add(format!("The fireball explodes, burning everything within {} tiles!", FIREBALL_RADIUS),
             colors::ORANGE);
 
     for cell in &object_manager.objects {
         let mut obj = cell.borrow_mut();
         if obj.distance(x, y) <= FIREBALL_RADIUS as f32 && obj.fighter.is_some() {
-            message(&mut game.log,
-                    format!("The {} gets burned for {} hit points.", obj.name, FIREBALL_DAMAGE),
+            game.log.add(format!("The {} gets burned for {} hit points.", obj.name, FIREBALL_DAMAGE),
                     colors::ORANGE);
-            obj.take_damage(FIREBALL_DAMAGE, &mut game.log);
+            obj.take_damage(FIREBALL_DAMAGE, game);
         }
     }
 

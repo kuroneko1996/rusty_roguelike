@@ -9,3 +9,13 @@ pub fn message<T: Into<String>>(messages: &mut Messages, message: T, color: Colo
     }
     messages.push((message.into(), color));
 }
+
+pub trait MessageLog {
+    fn add<T: Into<String>>(&mut self, message: T, color: Color);
+}
+
+impl MessageLog for Messages {
+    fn add<T: Into<String>>(&mut self, message: T, color: Color) {
+        self.push((message.into(), color));
+    }
+}

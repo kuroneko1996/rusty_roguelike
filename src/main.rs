@@ -146,7 +146,7 @@ fn main() {
     let mut object_manager = ObjectsManager { objects: objects };
 
     // greeting
-    message(&mut game.log, "Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
+    game.log.add("Welcome stranger! Prepare to die in these catacombs. Hahaha.", colors::RED);
 
     // FOV
     for x in 0..MAP_WIDTH {
@@ -185,7 +185,7 @@ fn main() {
 
         // monsters turn
         if object_manager.objects[PLAYER].borrow().alive && player_action == PlayerAction::TookTurn {
-            object_manager.ai_turn(&game.map, &tcod.fov, &mut game.log);
+            object_manager.ai_turn(&mut game, &tcod.fov);
         }
     }
 }
