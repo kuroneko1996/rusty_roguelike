@@ -95,7 +95,7 @@ impl Object {
     }
 
     pub fn attack(&mut self, target: &mut Object, game: &mut Game) {
-        let damage = self.fighter.map_or(0, |f| f.power) - target.fighter.map_or(0, |f| f.defense);
+        let damage = self.power(game) - target.defense(game);
         if damage > 0 {
             game.log.add(format!("{} attacks {} for {} hit points.", self.name, target.name, damage),
                     colors::WHITE);
@@ -111,11 +111,12 @@ impl Object {
         }
     }
 
-    pub fn heal(&mut self, amount: i32) {
+    pub fn heal(&mut self, amount: i32, game: &Game) {
+        let max_hp = self.max_hp(game);
         if let Some(ref mut fighter) = self.fighter {
             fighter.hp += amount;
-            if fighter.hp > fighter.max_hp {
-                fighter.hp = fighter.max_hp;
+            if fighter.hp > max_hp {
+                fighter.hp = max_hp;
             }
         }
     }
@@ -155,6 +156,33 @@ impl Object {
                             colors::RED);
         }
     }
+
+    pub fn power(&self, game: &Game) -> i32 {
+        let base_power = self.fighter.map_or(0, |f| f.base_power);
+        let bonus = self.get_all_equipped(game).iter().fold(0, |sum, e| sum + e.power_bonus);
+        base_power + bonus
+    }
+
+    pub fn defense(&self, game: &Game) -> i32 {
+        let base_defense = self.fighter.map_or(0, |f| f.base_defense);
+        let bonus = self.get_all_equipped(game).iter().fold(0, |sum, e| sum + e.defense_bonus);
+        base_defense + bonus
+    }
+
+    pub fn max_hp(&self, game: &Game) -> i32 {
+        let base_max_hp = self.fighter.map_or(0, |f| f.base_max_hp);
+        let bonus = self.get_all_equipped(game).iter().fold(0, |sum, e| sum + e.max_hp_bonus);
+        base_max_hp + bonus
+    }
+
+    pub fn get_all_equipped(&self, game: &Game) -> Vec<Equipment> {
+        if self.name == "player" { // TODO
+            game.inventory.iter().filter(|item| item.equipment.map_or(false, |e| e.equipped))
+                .map(|item| item.equipment.unwrap()).collect()
+        } else {
+            vec![]
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
@@ -165,10 +193,10 @@ pub enum DeathCallback {
 
 #[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Fighter {
-    pub max_hp: i32,
+    pub base_max_hp: i32,
     pub hp: i32,
-    pub defense: i32,
-    pub power: i32,
+    pub base_defense: i32,
+    pub base_power: i32,
     pub xp: i32,
     pub on_death: DeathCallback,
 }
@@ -179,7 +207,8 @@ pub enum Item {
     Lightning,
     Confuse,
     Fireball,
-    Equipment,
+    Sword,
+    Shield,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, RustcDecodable, RustcEncodable)]
@@ -187,6 +216,9 @@ pub enum Item {
 pub struct Equipment {
     pub slot: Slot,
     pub equipped: bool,
+    pub max_hp_bonus: i32,
+    pub power_bonus: i32,
+    pub defense_bonus: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, RustcDecodable, RustcEncodable)]
@@ -395,7 +427,8 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
         Some(Item::Lightning) => cast_lightning,
         Some(Item::Confuse) => cast_confuse,
         Some(Item::Fireball) => cast_fireball,
-        Some(Item::Equipment) => toggle_equipment,
+        Some(Item::Sword) => toggle_equipment,
+        Some(Item::Shield) => toggle_equipment,
         None => {
             game.log.add(format!("The {} cannot be used.", game.inventory[inventory_id].name), colors::WHITE);
             return
@@ -430,21 +463,17 @@ pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game:
 }
 
 fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
-    let mut is_fighter = false;
-    if let Some(fighter) = object_manager.objects[PLAYER].borrow().fighter {
-        if fighter.hp == fighter.max_hp {
+    let mut player = object_manager.objects[PLAYER].borrow_mut();
+    if let Some(fighter) = player.fighter {
+        if fighter.hp == player.max_hp(game) {
             game.log.add("You are already at full health.", colors::RED);
             return UseResult::Cancelled;
         }
-        is_fighter = true;
-    }
 
-    if is_fighter {
         game.log.add("Your wounds start to feel better!", colors::LIGHT_VIOLET);
-        object_manager.objects[PLAYER].borrow_mut().heal(HEAL_AMOUNT);
+        player.heal(HEAL_AMOUNT, game);
         return UseResult::UsedUp;
     }
-
     UseResult::Cancelled
 }
 

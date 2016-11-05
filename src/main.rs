@@ -102,7 +102,7 @@ fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut 
                 let msg = format!("Character information\n\n\
                                     Level: {}\nExperience: {} / {}\n\n\
                                     Maximum HP: {}\nAttack: {}\nDefense: {}", 
-                                    level, fighter.xp, level_up_xp, fighter.max_hp, fighter.power, fighter.defense);
+                                    level, fighter.xp, level_up_xp, fighter.base_max_hp, player.power(game), fighter.base_defense);
                 msgbox(&msg, CHARACTER_SCREEN_WIDTH, &mut tcod.root);
             }
             DidntTakeTurn
@@ -154,7 +154,7 @@ fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
     let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
     player.alive = true;
     player.fighter = Some(Fighter{
-        max_hp: 30, hp: 30, defense: 2, power: 5, xp: 0,
+        base_max_hp: 100, hp: 100, base_defense: 1, base_power: 2, xp: 0,
         on_death: DeathCallback::Player,
     });
 
@@ -166,6 +166,18 @@ fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
         inventory: vec![],
         dungeon_level: 1,
     };
+
+    // initial equipment
+    let mut dagger = Object::new(0, 0, '-', "dagger", colors::SKY, false);
+    dagger.item = Some(Item::Sword);
+    dagger.equipment = Some(Equipment {
+        equipped: true,
+        slot: Slot::LeftHand,
+        max_hp_bonus: 0,
+        defense_bonus: 0,
+        power_bonus: 2
+    });
+    game.inventory.push(dagger);
 
     let object_manager = ObjectsManager { objects: objects };
 
@@ -290,8 +302,8 @@ fn next_level(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut G
     game.log.add("You take a moment to rest, and recover your strength.", colors::VIOLET);
     {  
         let mut player = object_manager.objects[PLAYER].borrow_mut();
-        let heal_hp = player.fighter.map_or(0, |f| f.max_hp / 2);
-        player.heal(heal_hp);
+        let heal_hp = player.max_hp(game) / 2;
+        player.heal(heal_hp, game);
     }
 
     game.log.add("After a rare moment of peace, you descend deeper into \

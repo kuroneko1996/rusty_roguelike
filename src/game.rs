@@ -137,7 +137,7 @@ pub fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &m
     {
         let player = object_manager.objects[PLAYER].borrow();
         let hp = player.fighter.map_or(0, |f| f.hp);
-        let max_hp = player.fighter.map_or(0, |f| f.max_hp);
+        let max_hp = player.max_hp(game);
         render_bar(&mut tcod.panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
         tcod.panel.print_ex(1, 3, BackgroundFlag::None, TextAlignment::Left, format!("Dungeon Level: {}", game.dungeon_level));
     }
@@ -308,16 +308,16 @@ pub fn level_up(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut
         while choice.is_none() { // keep asking until choice is made
             choice = menu(
                 "Level up! Choose a stat to raise:\n",
-                &[format!("Constitution (+20 HP, from {})", fighter.max_hp),
-                  format!("Strength (+1 attack, from {})", fighter.power),
-                  format!("Agility (+1 defense, from {})", fighter.defense)],
+                &[format!("Constitution (+20 HP, from {})", fighter.base_max_hp),
+                  format!("Strength (+1 attack, from {})", fighter.base_power),
+                  format!("Agility (+1 defense, from {})", fighter.base_defense)],
                 LEVEL_SCREEN_WIDTH, &mut tcod.root);
         };
         fighter.xp -= level_up_xp;
         match choice.unwrap() {
-            0 => { fighter.max_hp += 20; fighter.hp += 20; },
-            1 => fighter.power += 1,
-            2 => fighter.defense += 1,
+            0 => { fighter.base_max_hp += 20; fighter.hp += 20; },
+            1 => fighter.base_power += 1,
+            2 => fighter.base_defense += 1,
             _ => unreachable!(),
         }
     }
