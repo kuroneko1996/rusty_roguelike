@@ -157,11 +157,12 @@ fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
         base_max_hp: 100, hp: 100, base_defense: 1, base_power: 2, xp: 0,
         on_death: DeathCallback::Player,
     });
+    let level = 1;
 
     let mut objects = vec![RefCell::new(player)];
 
     let mut game = Game {
-        map: make_map(&mut objects),
+        map: make_map(&mut objects, level),
         log: vec![], // messages here
         inventory: vec![],
         dungeon_level: 1,
@@ -314,7 +315,7 @@ fn next_level(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut G
     assert_eq!(&objects[PLAYER] as *const _, &objects[0] as *const _);
     objects.truncate(1);
     game.dungeon_level += 1;    
-    game.map = make_map(objects);
+    game.map = make_map(objects, game.dungeon_level);
 
     initialise_fov(&game.map, tcod);
 }

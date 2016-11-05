@@ -4,7 +4,6 @@ use std::cmp;
 use std::cell::RefCell;
 
 use rand::Rng;
-use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
 use tcod::colors::{self};
 
 use config::*;
@@ -13,6 +12,20 @@ use rect::*;
 use object::*;
 
 pub type Map = Vec<Vec<Tile>>;
+
+struct Transition {
+    level: u32,
+    value: u32,
+}
+
+/// Returns a value that depends on level. the table specifies what
+/// value occurs after each level, default is 0.
+fn from_dungeon_level(table: &[Transition], level: u32) -> u32 { // TODO auto sort by level ascending
+    table.iter()
+        .rev()
+        .find(|transition| level >= transition.level)
+        .map_or(0, |transition| transition.value)
+}
 
 pub fn create_room(room: Rect, map: &mut Map) {
     for x in (room.x1 + 1)..room.x2 {
@@ -34,21 +47,36 @@ pub fn create_v_tunnel(y1: i32, y2: i32, x: i32, map: &mut Map) {
     }    
 }
 
-pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) {
-    let num_monsters = rand::thread_rng().gen_range(0, MAX_ROOM_MONSTERS + 1);
+pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>, level: u32) {
+    use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
+    // monsters
+    // max monsters per room
+    let max_monsters = from_dungeon_level(&[
+        Transition {level: 1, value: 2},
+        Transition {level: 4, value: 3},
+        Transition {level: 6, value: 5},
+    ], level);
+
+    let num_monsters = rand::thread_rng().gen_range(0, max_monsters + 1);
+
+    // monster random table
+    let troll_chance = from_dungeon_level(&[
+        Transition {level: 3, value: 15},
+        Transition {level: 5, value: 30},
+        Transition {level: 7, value: 60},
+    ], level);
+
+    let monster_chances = &mut [
+        Weighted {weight: 80, item: MonsterType::Orc},
+        Weighted {weight: troll_chance, item: MonsterType::Troll},
+    ];
+    let monster_choice = WeightedChoice::new(monster_chances);
 
     for _ in 0..num_monsters {
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
-            // monsters random table
-            let monster_chances = &mut [
-                Weighted {weight: 80, item: MonsterType::Orc},
-                Weighted {weight: 20, item: MonsterType::Troll},
-            ];
-            let monster_choice = WeightedChoice::new(monster_chances);
-
             let mut monster = match monster_choice.ind_sample(&mut rand::thread_rng()) {
                 MonsterType::Orc => { 
                     let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
@@ -75,21 +103,35 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
     }
 
     // items
-    let num_items = rand::thread_rng().gen_range(0, MAX_ROOM_ITEMS + 1);
+    // maximum number of items per room
+    let max_items = from_dungeon_level(&[
+        Transition {level: 1, value: 1},
+        Transition {level: 4, value: 2},
+    ], level);
+
+    // item random table
+    let item_chances = &mut [
+        // healing potion always shows up, even if all other items have 0 chance
+        Weighted {weight: 35, item: Item::Heal},
+        Weighted {weight: from_dungeon_level(&[Transition{level: 4, value: 25}], level),
+                  item: Item::Lightning},
+        Weighted {weight: from_dungeon_level(&[Transition{level: 6, value: 25}], level),
+                  item: Item::Fireball},
+        Weighted {weight: from_dungeon_level(&[Transition{level: 2, value: 10}], level),
+                  item: Item::Confuse},
+        Weighted {weight: from_dungeon_level(&[Transition{level: 4, value: 5}], level),
+                  item: Item::Sword},
+        Weighted {weight: from_dungeon_level(&[Transition{level: 8, value: 15}], level),
+                  item: Item::Shield},
+    ];
+
+    let num_items = rand::thread_rng().gen_range(0, max_items + 1);
     for _ in 0..num_items {
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
             // item random table
-            let item_chances = &mut [
-                Weighted {weight: 70, item: Item::Heal},
-                Weighted {weight: 10, item: Item::Lightning},
-                Weighted {weight: 10, item: Item::Fireball},
-                Weighted {weight: 10, item: Item::Confuse},
-                Weighted {weight: 200, item: Item::Sword},
-                Weighted {weight: 200, item: Item::Shield},
-            ];
             let item_choice = WeightedChoice::new(item_chances);
 
             let mut item = match item_choice.ind_sample(&mut rand::thread_rng()) {
@@ -142,7 +184,7 @@ pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &[RefCell<Object>]) -> boo
     })
 }
 
-pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
+pub fn make_map(objects: &mut Vec<RefCell<Object>>, level: u32) -> Map {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
     let mut rooms = vec![];
 
@@ -176,7 +218,7 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
                 }
             }
 
-            place_objects(new_room, &map, objects);
+            place_objects(new_room, &map, objects, level);
             rooms.push(new_room);
         }
     }

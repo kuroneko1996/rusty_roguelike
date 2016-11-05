@@ -34,9 +34,6 @@ pub const FOV_ALGO: FovAlgorithm = FovAlgorithm::Basic;
 pub const FOV_LIGHT_WALLS: bool = true;
 pub const TORCH_RADIUS: i32 = 10;
 
-pub const MAX_ROOM_MONSTERS: i32 = 3;
-pub const MAX_ROOM_ITEMS: i32 = 2;
-
 pub const MAX_INVENTORY_SIZE: i32 = 26;
 
 // player's index in objects vector

@@ -13,7 +13,7 @@ pub struct Game {
     pub map: Map,
     pub log: Messages,
     pub inventory: Vec<Object>,
-    pub dungeon_level: i32,
+    pub dungeon_level: u32,
 }
 
 pub struct Tcod {
