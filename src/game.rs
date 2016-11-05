@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use tcod::console::*;
 use tcod::map::{Map as FovMap};
 use tcod::input::{self, Event, Mouse};
@@ -251,7 +250,7 @@ pub fn inventory_menu(inventory: &[Object], header: &str, root: &mut Root) -> Op
         inventory.iter().map(|item| { 
             match item.equipment {
                 Some(equipment) if equipment.equipped => {
-                    format!("{} (on {:?})", item.name, equipment.slot)
+                    format!("{} (on {})", item.name, equipment.slot)
                 },
                 _ => item.name.clone(),
             }

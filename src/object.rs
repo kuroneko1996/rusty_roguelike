@@ -129,7 +129,7 @@ impl Object {
         if let Some(ref mut equipment) = self.equipment {
             if !equipment.equipped {
                 equipment.equipped = true;
-                log.add(format!("Equipped {} on {:?}.", self.name, equipment.slot),
+                log.add(format!("Equipped {} on {}.", self.name, equipment.slot),
                                 colors::LIGHT_GREEN);
             }
         } else {
@@ -147,7 +147,7 @@ impl Object {
         if let Some(ref mut equipment) = self.equipment {
             if equipment.equipped {
                 equipment.equipped = false;
-                log.add(format!("Dequipped {} from {:?}.", self.name, equipment.slot),
+                log.add(format!("Dequipped {} from {}.", self.name, equipment.slot),
                                 colors::LIGHT_YELLOW);
             }
         } else {
@@ -194,6 +194,16 @@ pub enum Slot {
     LeftHand,
     RightHand,
     Head,
+}
+
+impl ::std::fmt::Display for Slot {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Slot::LeftHand => write!(f, "left hand"),
+            Slot::RightHand => write!(f, "right hand"),
+            Slot::Head => write!(f, "head"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -407,6 +417,10 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
 pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) 
 {
     let mut item = game.inventory.remove(inventory_id);
+    if item.equipment.is_some() {
+        item.dequip(&mut game.log);
+    }
+    
     {
         let player = object_manager.objects[PLAYER].borrow();
         item.set_pos(player.x, player.y);
