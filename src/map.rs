@@ -87,6 +87,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                 Weighted {weight: 10, item: Item::Lightning},
                 Weighted {weight: 10, item: Item::Fireball},
                 Weighted {weight: 10, item: Item::Confuse},
+                Weighted {weight: 100, item: Item::Equipment},
             ];
             let item_choice = WeightedChoice::new(item_chances);
 
@@ -110,7 +111,13 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                     let mut object = Object::new(x, y, '#', "scroll of confusion", colors::LIGHT_YELLOW, false);
                     object.item = Some(Item::Confuse);
                     object
-                }
+                },
+                Item::Equipment => {
+                    let mut object = Object::new(x, y, '/', "sword", colors::SKY, false);
+                    object.item = Some(Item::Equipment);
+                    object.equipment = Some(Equipment{equipped: false, slot: Slot::RightHand});
+                    object
+                },
             };
             item.always_visible = true;
             objects.push(RefCell::new(item));

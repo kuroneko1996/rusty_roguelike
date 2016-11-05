@@ -27,6 +27,7 @@ pub struct Object {
     pub item: Option<Item>,
     pub always_visible: bool,
     pub level: i32,
+    pub equipment: Option<Equipment>,
 }
 
 impl Object {
@@ -44,6 +45,7 @@ impl Object {
             item: None,
             always_visible: false,
             level: 1,
+            equipment: None,
         }
     }
 
@@ -117,6 +119,42 @@ impl Object {
             }
         }
     }
+
+    pub fn equip(&mut self, log: &mut Vec<(String, Color)>) {
+        if self.item.is_none() {
+            log.add(format!("Can't equip {:?} because it's not an Item.", self),
+                colors::RED);
+            return
+        };
+        if let Some(ref mut equipment) = self.equipment {
+            if !equipment.equipped {
+                equipment.equipped = true;
+                log.add(format!("Equipped {} on {:?}.", self.name, equipment.slot),
+                                colors::LIGHT_GREEN);
+            }
+        } else {
+            log.add(format!("Can't equip {:?} because it's not an Equipment.", self),
+                colors::RED);
+        }
+    }
+
+    pub fn dequip(&mut self, log: &mut Vec<(String, Color)>) {
+        if self.item.is_none() {
+            log.add(format!("Can't dequip {:?} because it's not an Item.", self),
+                            colors::RED);
+            return
+        };
+        if let Some(ref mut equipment) = self.equipment {
+            if equipment.equipped {
+                equipment.equipped = false;
+                log.add(format!("Dequipped {} from {:?}.", self.name, equipment.slot),
+                                colors::LIGHT_YELLOW);
+            }
+        } else {
+            log.add(format!("Can't dequip {:?} because it's not an Equipment.", self),
+                            colors::RED);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, RustcEncodable, RustcDecodable)]
@@ -141,6 +179,21 @@ pub enum Item {
     Lightning,
     Confuse,
     Fireball,
+    Equipment,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, RustcDecodable, RustcEncodable)]
+/// An object that can be equipped, yielding bonuses.
+pub struct Equipment {
+    pub slot: Slot,
+    pub equipped: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, RustcDecodable, RustcEncodable)]
+pub enum Slot {
+    LeftHand,
+    RightHand,
+    Head,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -297,7 +350,7 @@ fn monster_death(monster: &mut Object, game: &mut Game) {
     game.log.add(
     format!("{} is dead! You gain {} experience points.",
             monster.name, monster.fighter.map_or(0, |f| f.xp)), colors::ORANGE);
-    
+
     monster.char = '%';
     monster.color = colors::DARK_RED;
     monster.blocks = false;
@@ -310,28 +363,31 @@ pub fn pick_item_up(object_id: usize, object_manager: &mut ObjectsManager, game:
     if game.inventory.len() >= MAX_INVENTORY_SIZE as usize {
         game.log.add(format!("Your inventory is full, cannot pick up {}.", object_manager.objects[object_id].borrow().deref().name), colors::RED);
     } else {
-        let item = object_manager.objects.swap_remove(object_id);
-        game.log.add(format!("You picked up a {}!", item.borrow().deref().name), colors::GREEN);
+        let cell = object_manager.objects.swap_remove(object_id);
+        let item = cell.into_inner();
+        game.log.add(format!("You picked up a {}!", item.name), colors::GREEN);
         game.inventory.push(item);
     }
 }
 
 pub enum UseResult {
     UsedUp,
+    UsedAndKept,
     Cancelled,
 }
 
 pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) 
 {
-    let item = game.inventory[inventory_id].borrow().item;
+    let item = game.inventory[inventory_id].item;
     
     let on_use = match item {
         Some(Item::Heal) => cast_heal,
         Some(Item::Lightning) => cast_lightning,
         Some(Item::Confuse) => cast_confuse,
         Some(Item::Fireball) => cast_fireball,
+        Some(Item::Equipment) => toggle_equipment,
         None => {
-            game.log.add(format!("The {} cannot be used.", game.inventory[inventory_id].borrow().name), colors::WHITE);
+            game.log.add(format!("The {} cannot be used.", game.inventory[inventory_id].name), colors::WHITE);
             return
         },
     };
@@ -341,6 +397,7 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
             // destroy after use
             game.inventory.remove(inventory_id);
         },
+        UseResult::UsedAndKept => {}, // do nothing
         UseResult::Cancelled => {
             game.log.add("Cancelled", colors::WHITE);
         }
@@ -349,14 +406,13 @@ pub fn use_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: 
 
 pub fn drop_item(inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game) 
 {
-    let item_cell = game.inventory.remove(inventory_id);
+    let mut item = game.inventory.remove(inventory_id);
     {
-        let mut item = item_cell.borrow_mut();
         let player = object_manager.objects[PLAYER].borrow();
         item.set_pos(player.x, player.y);
-        game.log.add(format!("You dropped a {}.", item.name), colors::YELLOW);
     }
-    object_manager.objects.push(item_cell);
+    game.log.add(format!("You dropped a {}.", item.name), colors::YELLOW);
+    object_manager.objects.push(RefCell::new(item));
 }
 
 fn cast_heal(_inventory_id: usize, object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) -> UseResult {
@@ -449,6 +505,31 @@ fn cast_fireball(_inventory_id: usize, object_manager: &mut ObjectsManager, game
     object_manager.objects[PLAYER].borrow_mut().fighter.as_mut().unwrap().xp += xp_to_gain;
 
     UseResult::UsedUp
+}
+
+fn toggle_equipment(inventory_id: usize, _object_manager: &mut ObjectsManager, game: &mut Game, _tcod: &mut Tcod) -> UseResult {
+    let equipment = match game.inventory[inventory_id].equipment {
+        Some(equipment) => equipment,
+        None => return UseResult::Cancelled,
+    };
+    if equipment.equipped {
+        game.inventory[inventory_id].dequip(&mut game.log);
+    } else {
+        if let Some(old_equipment) = get_equipped_in_slot(equipment.slot, &game.inventory) {
+            game.inventory[old_equipment].dequip(&mut game.log);
+        }
+        game.inventory[inventory_id].equip(&mut game.log);
+    }
+    UseResult::UsedAndKept
+}
+
+fn get_equipped_in_slot(slot: Slot, inventory: &[Object]) -> Option<usize> {
+    for (inventory_id, item) in inventory.iter().enumerate() {
+        if item.equipment.as_ref().map_or(false, |e| e.equipped && e.slot == slot) {
+            return Some(inventory_id)
+        }
+    }
+    None
 }
 
 fn closest_monster(max_range: i32, object_manager: &mut ObjectsManager, tcod: &mut Tcod) -> Option<usize> {

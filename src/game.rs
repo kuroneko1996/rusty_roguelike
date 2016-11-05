@@ -13,7 +13,7 @@ use object::{Object, ObjectsManager};
 pub struct Game {
     pub map: Map,
     pub log: Messages,
-    pub inventory: Vec<RefCell<Object>>,
+    pub inventory: Vec<Object>,
     pub dungeon_level: i32,
 }
 
@@ -244,11 +244,18 @@ pub fn msg(text: &str, width: i32, root: &mut Root) {
     root.flush();
 }
 
-pub fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Root) -> Option<usize> {
+pub fn inventory_menu(inventory: &[Object], header: &str, root: &mut Root) -> Option<usize> {
     let options = if inventory.len() == 0 {
         vec!["Inventory is empty".into()]
     } else {
-        inventory.iter().map(|c| { c.borrow().name.clone() }).collect()
+        inventory.iter().map(|item| { 
+            match item.equipment {
+                Some(equipment) if equipment.equipped => {
+                    format!("{} (on {:?})", item.name, equipment.slot)
+                },
+                _ => item.name.clone(),
+            }
+        }).collect()
     };
 
     let inventory_index = menu(header, &options, INVENTORY_WIDTH, root);
