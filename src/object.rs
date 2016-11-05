@@ -25,6 +25,7 @@ pub struct Object {
     pub fighter: Option<Fighter>,
     pub ai: Option<Ai>,
     pub item: Option<Item>,
+    pub always_visible: bool,
 }
 
 impl Object {
@@ -40,6 +41,7 @@ impl Object {
             fighter: None,
             ai: None,
             item: None,
+            always_visible: false,
         }
     }
 
@@ -165,12 +167,14 @@ impl ObjectsManager {
         }
     }
 
-    pub fn draw(&self, con: &mut Offscreen, fov_map: &FovMap) {
-        let mut to_draw: Vec<_> = self.objects.iter().map(|c| c.borrow()).filter(|o| fov_map.is_in_fov(o.x, o.y)).collect();
+    pub fn draw(&self, tcod: &mut Tcod, game: &mut Game) {
+        let mut to_draw: Vec<_> = self.objects.iter().map(|c| c.borrow()).filter(|o| {
+            tcod.fov.is_in_fov(o.x, o.y) || (o.always_visible && game.map[o.x as usize][o.y as usize].explored)
+        }).collect();
         // sort so that non-blocking objects come first
         to_draw.sort_by(|o1, o2| { o1.blocks.cmp(&o2.blocks) });
         for object in &to_draw {
-            object.draw(con);
+            object.draw(&mut tcod.con);
         }
     }
 

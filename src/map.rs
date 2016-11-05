@@ -90,7 +90,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
             ];
             let item_choice = WeightedChoice::new(item_chances);
 
-            let item = match item_choice.ind_sample(&mut rand::thread_rng()) {
+            let mut item = match item_choice.ind_sample(&mut rand::thread_rng()) {
                 Item::Heal => {
                     let mut object = Object::new(x, y, '!', "healing potion", colors::VIOLET, false);
                     object.item = Some(Item::Heal);
@@ -112,6 +112,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                     object
                 }
             };
+            item.always_visible = true;
             objects.push(RefCell::new(item));
         }
     }
@@ -165,6 +166,12 @@ pub fn make_map(objects: &mut Vec<RefCell<Object>>) -> Map {
             rooms.push(new_room);
         }
     }
+
+    // add stairs to the center of last room
+    let (last_room_x, last_room_y) = rooms[rooms.len() - 1].center();
+    let mut stairs = Object::new(last_room_x, last_room_y, '<', "stairs", colors::WHITE, false);
+    stairs.always_visible = true;
+    objects.push(RefCell::new(stairs));
 
     map
 }

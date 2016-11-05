@@ -14,6 +14,7 @@ pub struct Game {
     pub map: Map,
     pub log: Messages,
     pub inventory: Vec<RefCell<Object>>,
+    pub dungeon_level: i32,
 }
 
 pub struct Tcod {
@@ -112,7 +113,7 @@ pub fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &m
     }
 
     // draw objects
-    object_manager.draw(&mut tcod.con, &tcod.fov);
+    object_manager.draw(tcod, game);
 
     // copy buffer
     blit(&tcod.con, (0, 0), (MAP_WIDTH, MAP_HEIGHT), &mut tcod.root, (0, 0), 1.0, 1.0);
@@ -133,12 +134,13 @@ pub fn render_all(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &m
         tcod.panel.print_rect(MSG_X, y, MSG_WIDTH, 0, msg);
     }
 
-    // draw stats
+    // draw stats and information
     {
         let player = object_manager.objects[PLAYER].borrow();
         let hp = player.fighter.map_or(0, |f| f.hp);
         let max_hp = player.fighter.map_or(0, |f| f.max_hp);
         render_bar(&mut tcod.panel, 1, 1, BAR_WIDTH, "HP", hp, max_hp, colors::LIGHT_RED, colors::DARKER_RED);
+        tcod.panel.print_ex(1, 3, BackgroundFlag::None, TextAlignment::Left, format!("Dungeon Level: {}", game.dungeon_level));
     }
     
 

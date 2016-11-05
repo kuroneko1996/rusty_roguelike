@@ -78,6 +78,16 @@ fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut 
         (Key { code: NumPad5, .. }, true) => { // wait for turn
             TookTurn 
         },
+        (Key { printable: '<', .. }, true) | (Key { printable: ',', .. }, true) => { // go down the stairs
+            let player_pos = object_manager.objects[PLAYER].borrow().pos();
+            let player_on_stairs = object_manager.objects.iter().map(|c| c.borrow()).any(|object| {
+                object.pos() == player_pos && object.name == "stairs"
+            });
+            if player_on_stairs {
+                next_level(tcod, object_manager, game);
+            }
+            DidntTakeTurn
+        },
         // Help screen
         (Key { printable: '?', .. }, true) | (Key { printable: '/', .. }, true) => { 
             show_help(&mut tcod.root);
@@ -140,6 +150,7 @@ fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
         map: make_map(&mut objects),
         log: vec![], // messages here
         inventory: vec![],
+        dungeon_level: 1,
     };
 
     let object_manager = ObjectsManager { objects: objects };
@@ -257,6 +268,27 @@ fn load_game() -> Result<(Vec<Object>, Game), Box<Error>> {
     try! { file.read_to_string(&mut json_save_state) };
     let result = try! { json::decode::<(Vec<Object>, Game)>(&json_save_state) };
     Ok(result)
+}
+
+fn next_level(tcod: &mut Tcod, object_manager: &mut ObjectsManager, game: &mut Game) {
+    game.log.add("You take a moment to rest, and recover your strength.", colors::VIOLET);
+    {  
+        let mut player = object_manager.objects[PLAYER].borrow_mut();
+        let heal_hp = player.fighter.map_or(0, |f| f.max_hp / 2);
+        player.heal(heal_hp);
+    }
+
+    game.log.add("After a rare moment of peace, you descend deeper into \
+                  the heart of the dungeon...", colors::RED);
+
+    let mut objects = &mut object_manager.objects;
+    // check if player is the first(0) element, remove everything else
+    assert_eq!(&objects[PLAYER] as *const _, &objects[0] as *const _);
+    objects.truncate(1);
+    game.dungeon_level += 1;    
+    game.map = make_map(objects);
+
+    initialise_fov(&game.map, tcod);
 }
 
 fn main() {
