@@ -6,7 +6,7 @@ use tcod::colors::{self, Color};
 
 use config::*;
 use map::Map;
-use messages::Messages;
+use messages::*;
 use object::{Object, ObjectsManager};
 
 #[derive(RustcEncodable, RustcDecodable)]
@@ -262,8 +262,10 @@ pub fn inventory_menu(inventory: &[RefCell<Object>], header: &str, root: &mut Ro
 
 pub fn show_help(root: &mut Root) {
     let width = HELP_WIDTH;
-    let help_text = "Press arrows or numpad buttons to move. Use 'g' to pick up items, \
-                    'i' to open an inventory, 'd' to drop item. '?' or '/' for this help. \
+    let help_text = "Press arrows or numpad buttons to move. Use 'g' to pick up items, \n\
+                    'i' to open an inventory, 'd' to drop item. \n\
+                    'c' to open the character information screen, '<' or ',' to move down the stairs, \n\
+                    '?' or '/' for this help. Esc to open the main menu. \n\
                     Press any key to close this window.";
     let height = 8;
 
@@ -278,4 +280,39 @@ pub fn show_help(root: &mut Root) {
 
     root.flush();
     root.wait_for_keypress(true);
+}
+
+pub enum LevelUpStat {
+    Constitution,
+    Strength,
+    Agility,
+}
+
+pub fn level_up(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tcod) {
+    let mut player = object_manager.objects[PLAYER].borrow_mut();
+    let level_up_xp = LEVEL_UP_BASE + player.level * LEVEL_UP_FACTOR;
+
+    if player.fighter.as_ref().map_or(0, |f| f.xp) >= level_up_xp {
+        player.level += 1;
+        game.log.add(format!("Your battle skills grow stronger! You reached level {}!", player.level), colors::YELLOW);
+
+        let fighter = player.fighter.as_mut().unwrap();
+        let mut choice = None;
+
+        while choice.is_none() { // keep asking until choice is made
+            choice = menu(
+                "Level up! Choose a stat to raise:\n",
+                &[format!("Constitution (+20 HP, from {})", fighter.max_hp),
+                  format!("Strength (+1 attack, from {})", fighter.power),
+                  format!("Agility (+1 defense, from {})", fighter.defense)],
+                LEVEL_SCREEN_WIDTH, &mut tcod.root);
+        };
+        fighter.xp -= level_up_xp;
+        match choice.unwrap() {
+            0 => { fighter.max_hp += 20; fighter.hp += 20; },
+            1 => fighter.power += 1,
+            2 => fighter.defense += 1,
+            _ => unreachable!(),
+        }
+    }
 }

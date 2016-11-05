@@ -26,6 +26,7 @@ pub struct Object {
     pub ai: Option<Ai>,
     pub item: Option<Item>,
     pub always_visible: bool,
+    pub level: i32,
 }
 
 impl Object {
@@ -42,6 +43,7 @@ impl Object {
             ai: None,
             item: None,
             always_visible: false,
+            level: 1,
         }
     }
 
@@ -73,7 +75,7 @@ impl Object {
         con.put_char(self.x, self.y, ' ', BackgroundFlag::None);
     }
 
-    pub fn take_damage(&mut self, damage: i32, game: &mut Game) {
+    pub fn take_damage(&mut self, damage: i32, game: &mut Game) -> Option<i32> {
         if let Some(fighter) = self.fighter.as_mut() {
             if damage > 0 {
                 fighter.hp -= damage;
@@ -84,8 +86,10 @@ impl Object {
             if fighter.hp <= 0 {
                 self.alive = false;
                 fighter.on_death.callback(self, game);
+                return Some(fighter.xp);
             }
         }
+        None
     }
 
     pub fn attack(&mut self, target: &mut Object, game: &mut Game) {
@@ -93,7 +97,12 @@ impl Object {
         if damage > 0 {
             game.log.add(format!("{} attacks {} for {} hit points.", self.name, target.name, damage),
                     colors::WHITE);
-            target.take_damage(damage, game);
+            if let Some(xp) = target.take_damage(damage, game) {
+                // yield experience to the player
+                if let Some(f) = self.fighter.as_mut() {
+                    f.xp += xp;
+                }
+            }
         } else {
             game.log.add(format!("{} attacks {} but it has no effect!", self.name, target.name),
                     colors::WHITE);
@@ -122,6 +131,7 @@ pub struct Fighter {
     pub hp: i32,
     pub defense: i32,
     pub power: i32,
+    pub xp: i32,
     pub on_death: DeathCallback,
 }
 
@@ -284,7 +294,10 @@ fn player_death(player: &mut Object, game: &mut Game) {
 
 fn monster_death(monster: &mut Object, game: &mut Game) {
     // transform to a corpse
-    game.log.add(format!("{} is dead", monster.name), colors::ORANGE);
+    game.log.add(
+    format!("{} is dead! You gain {} experience points.",
+            monster.name, monster.fighter.map_or(0, |f| f.xp)), colors::ORANGE);
+    
     monster.char = '%';
     monster.color = colors::DARK_RED;
     monster.blocks = false;
@@ -374,7 +387,12 @@ fn cast_lightning(_inventory_id: usize, object_manager: &mut ObjectsManager, gam
                                         The damage is {} hit points.", 
                                 monster.name, LIGHTNING_DAMAGE),
                 colors::LIGHT_BLUE);
-        monster.take_damage(LIGHTNING_DAMAGE, game);
+        if let Some(xp) = monster.take_damage(LIGHTNING_DAMAGE, game) {
+            // add exp to the player
+            if let Some(f) = object_manager.objects[PLAYER].borrow_mut().fighter.as_mut() {
+                f.xp += xp;
+            }
+        }
         UseResult::UsedUp
     } else {
         game.log.add("No enemy is close enough to strike", colors::RED);
@@ -415,14 +433,20 @@ fn cast_fireball(_inventory_id: usize, object_manager: &mut ObjectsManager, game
     game.log.add(format!("The fireball explodes, burning everything within {} tiles!", FIREBALL_RADIUS),
             colors::ORANGE);
 
-    for cell in &object_manager.objects {
+    let mut xp_to_gain = 0;
+    for (id, cell) in object_manager.objects.iter_mut().enumerate() {
         let mut obj = cell.borrow_mut();
         if obj.distance(x, y) <= FIREBALL_RADIUS as f32 && obj.fighter.is_some() {
             game.log.add(format!("The {} gets burned for {} hit points.", obj.name, FIREBALL_DAMAGE),
                     colors::ORANGE);
-            obj.take_damage(FIREBALL_DAMAGE, game);
+            if let Some(xp) = obj.take_damage(FIREBALL_DAMAGE, game) {
+                if id != PLAYER {
+                    xp_to_gain += xp;
+                }
+            }
         }
     }
+    object_manager.objects[PLAYER].borrow_mut().fighter.as_mut().unwrap().xp += xp_to_gain;
 
     UseResult::UsedUp
 }

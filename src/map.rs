@@ -53,7 +53,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                 MonsterType::Orc => { 
                     let mut orc = Object::new(x, y, 'o', "orc", colors::DESATURATED_GREEN, true);
                     orc.fighter = Some(Fighter{
-                        max_hp: 10, hp: 10, defense: 0, power: 3,
+                        max_hp: 10, hp: 10, defense: 0, power: 3, xp: 35,
                         on_death: DeathCallback::Monster,
                     });
                     orc.ai = Some(Ai::Basic);
@@ -62,7 +62,7 @@ pub fn place_objects(room: Rect, map: &Map, objects: &mut Vec<RefCell<Object>>) 
                 MonsterType::Troll => {
                     let mut troll = Object::new(x, y, 'T', "troll", colors::DARKER_GREEN, true);
                     troll.fighter = Some(Fighter{
-                        max_hp: 10, hp: 10, defense: 0, power: 3,
+                        max_hp: 10, hp: 10, defense: 0, power: 3, xp: 100,
                         on_death: DeathCallback::Monster,
                     });
                     troll.ai = Some(Ai::Basic);

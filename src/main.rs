@@ -92,7 +92,21 @@ fn handle_keys(key: Key, tcod: &mut Tcod, game: &mut Game, object_manager: &mut 
         (Key { printable: '?', .. }, true) | (Key { printable: '/', .. }, true) => { 
             show_help(&mut tcod.root);
             DidntTakeTurn
-        }
+        },
+        // Character
+        (Key { printable: 'c', .. }, true) => {
+            let player = object_manager.objects[PLAYER].borrow();
+            let level = player.level;
+            let level_up_xp = LEVEL_UP_BASE + level * LEVEL_UP_FACTOR;
+            if let Some(fighter) = player.fighter.as_ref() {
+                let msg = format!("Character information\n\n\
+                                    Level: {}\nExperience: {} / {}\n\n\
+                                    Maximum HP: {}\nAttack: {}\nDefense: {}", 
+                                    level, fighter.xp, level_up_xp, fighter.max_hp, fighter.power, fighter.defense);
+                msgbox(&msg, CHARACTER_SCREEN_WIDTH, &mut tcod.root);
+            }
+            DidntTakeTurn
+        },
         // Inventory
         (Key { printable: 'g', .. }, true) => {
             let player_pos = object_manager.objects[PLAYER].borrow().pos();
@@ -140,7 +154,7 @@ fn new_game(tcod: &mut Tcod) -> (ObjectsManager, Game) {
     let mut player = Object::new(0, 0, '@', "player", colors::WHITE, true);
     player.alive = true;
     player.fighter = Some(Fighter{
-        max_hp: 30, hp: 30, defense: 2, power: 5,
+        max_hp: 30, hp: 30, defense: 2, power: 5, xp: 0,
         on_death: DeathCallback::Player,
     });
 
@@ -180,6 +194,8 @@ fn play_game(object_manager: &mut ObjectsManager, game: &mut Game, tcod: &mut Tc
         render_all(tcod, object_manager, game, fov_recompute);
 
         tcod.root.flush();
+
+        level_up(object_manager, game, tcod);
       
         object_manager.draw_clear(&mut tcod.con);
 
